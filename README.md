@@ -20,16 +20,43 @@
   | ④ | 测试 | 测试报告 |
   | ⑤ | 发布上线 | 上线 |
 
-- **达成度** — 叶子目标人工填；大目标由子目标 + KR 自动汇总（不落库、实时算）
+- **健康度 / 阶段状态** — 全部**人工选择**的枚举（🟢 on-track / 🟡 at-risk / 🔴 off-track；阶段：待开始 / 进行中 / 已完成 / 阻塞）
 
-## 看原型
+## 运行
 
-用浏览器直接打开 [`prototype/index.html`](prototype/index.html)（单文件、零依赖、可点击）。
+```bash
+./run.sh          # 首次自动建 venv、装依赖；之后起服务
+```
 
-## 技术栈（规划）
+浏览器打开 **http://127.0.0.1:8000/**（前端由后端同源托管）。
+API 文档见 **http://127.0.0.1:8000/docs**。首次启动自动建库并播种示例数据（SQLite，落在 `backend/goalplatform.db`）。
 
-同 EddPlatform：后端 **Python / FastAPI**，前端 **React + TypeScript + Vite**。当前仅高保真可点击原型，作为后续实现的设计基准。
+> 手动方式：`cd backend && uv pip install --python .venv/bin/python -r requirements.txt && .venv/bin/uvicorn main:app --reload`
+
+## 本版范围（做了减法）
+
+重点是**目标 + 计划的增删改查与持久化**，其余先不做：
+
+- ✅ 业务线 / 周期 / 目标（递归树）/ KR / 固定 5 阶段计划 —— 全链路 CRUD + 持久化
+- ✅ 目标树展开、健康度过滤、按周期切换；目标详情里改 KR、逐阶段排期与关联 Jira Key、加/删子目标（级联删除）
+- ❌ **不做任何达成度 / 百分比计算与自动汇总**（健康度、阶段状态改为人工设置）
+- ➖ Jira / EddPlatform 仅存 Key、留接口，未真正对接
+
+## 技术栈
+
+- 后端：**Python / FastAPI + SQLModel + SQLite**（`backend/`）
+- 前端：**单文件原生 SPA**（`frontend/index.html`，复用原型设计，直连 API；本版从简，未上 React/Vite）
+- `prototype/index.html` 为最初的静态高保真原型，保留作设计参照。
+
+## 目录
+
+```
+backend/    FastAPI 服务：models / schemas / db(种子) / serializers / routers(business_lines,cycles,goals)
+frontend/   功能版 SPA（同源托管）
+prototype/  最初的静态原型
+run.sh      一键启动
+```
 
 ## 状态
 
-早期脚手架 · 原型阶段 · 私有仓库。
+可运行的最小可用版本（目标 + 计划管理）· 私有仓库。

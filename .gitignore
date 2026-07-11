@@ -13,3 +13,7 @@ build/
 .idea/
 .vscode/
 node_modules/
+
+# 本地 SQLite 库（运行时生成、自动播种）
+*.db
+backend/goalplatform.db
