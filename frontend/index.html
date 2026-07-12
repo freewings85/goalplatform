@@ -488,7 +488,7 @@ function wsRowHtml(g,depth,r){
 function renderWorkspace(c){
   if(!state.lines.length){c.innerHTML=`<div class="empty">还没有业务线。<br/><button class="btn primary" data-act="go" data-id="lines" style="margin-top:12px">去新建业务线</button></div>`;return;}
   const lineOpts=state.lines.map(l=>`<option value="${l.id}" ${l.id===state.lineId?'selected':''}>${esc(l.name)}</option>`).join('');
-  const chips=[['all','全部'],['on_track','🟢'],['at_risk','🟡'],['off_track','🔴']]
+  const chips=[['all','全部']].concat(HEALTHS.map(h=>[h[0],h[2]]))
     .map(([k,l])=>`<button class="chip ${state.healthFilter===k?'active':''}" data-act="filterHealth" data-id="${k}">${l}</button>`).join('');
   const rows=visibleGoals();
   const r=computeRange(state.goals);
