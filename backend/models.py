@@ -14,22 +14,15 @@ from sqlmodel import Field, SQLModel
 
 
 # ---- 枚举（都是人工选择，不是计算得来） ----
-class Health(str, Enum):
-    on_track = "on_track"   # 🟢
-    at_risk = "at_risk"     # 🟡
-    off_track = "off_track" # 🔴
-
-
 class CycleStatus(str, Enum):
     active = "active"       # 进行中
     archived = "archived"   # 已归档
 
 
 class StageStatus(str, Enum):
-    todo = "todo"           # 待开始 ⚪
+    todo = "todo"           # 未开始 ⚪
     running = "running"     # 进行中 🟡
     done = "done"           # 已完成 🟢
-    blocked = "blocked"     # 阻塞 🔴
 
 
 # ---- 固定 5 阶段交付流水线：每个目标（大/小通用）都走同一条 ----
@@ -100,7 +93,6 @@ class Goal(SQLModel, table=True):
     title: str
     owner: str = ""
     owner_user_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
-    health: Health = Health.on_track           # 人工判断
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     sort_order: int = 0

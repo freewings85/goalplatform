@@ -60,7 +60,6 @@ def goal_dict(goal: Goal, session: Session, *, with_children: bool = False) -> d
         "title": goal.title,
         "owner": goal.owner,
         "owner_user_id": goal.owner_user_id,
-        "health": goal.health,
         "start_date": goal.start_date,
         "end_date": goal.end_date,
         "sort_order": goal.sort_order,

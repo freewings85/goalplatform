@@ -177,6 +177,10 @@
   .gseg.done{background:var(--ok)} .gseg.running{background:var(--warn)} .gseg.blocked{background:var(--bad)} .gseg.todo{background:#cbd5e1}
   .gtip{position:fixed;z-index:70;background:var(--ink);color:#fff;font-size:12px;padding:6px 9px;border-radius:7px;pointer-events:none;white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.3);display:none}
   .noplan{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:11.5px;color:#cbd5e1}
+  /* 目标弹窗里的 5 阶段编辑卡 */
+  .secard{border:1px solid var(--line);border-radius:9px;padding:9px 11px;margin-bottom:8px;background:#fbfcfe}
+  .secard .se-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .secard .segmented{margin-top:2px}
   [hidden]{display:none!important}
 </style>
 </head>
@@ -205,23 +209,19 @@
     </div>
     <nav class="nav" id="nav-main">
       <div class="sec">管理</div>
-      <a data-nav="workspace">🎯 目标计划</a>
       <a data-nav="lines">🗂️ 业务线</a>
       <a data-nav="cycles">🗓️ 周期</a>
       <div class="sec">平台</div>
       <a data-nav="settings">👥 用户 / 集成</a>
     </nav>
-    <div class="side-foot">目标 / 计划在本平台<br/>执行 · 文档 · 附件都在 Jira</div>
+    <div class="side-foot">进业务线看目标计划<br/>执行 · 文档 · 附件都在 Jira</div>
   </aside>
 
   <div class="main">
     <div class="topbar">
       <div class="crumb" id="crumb">业务线</div>
-      <div class="cyclepick">
-        <span class="muted" style="font-size:12px">周期</span>
-        <select id="cycleSel"></select>
-        <span id="meBox" style="display:flex;align-items:center;gap:8px;margin-left:6px"></span>
-      </div>
+      <span style="flex:1"></span>
+      <span id="meBox" style="display:flex;align-items:center;gap:8px"></span>
     </div>
     <div class="content" id="content"></div>
   </div>
@@ -240,13 +240,13 @@
 
 <script>
 const API='/api';
-const HEALTHS=[['on_track','ok','🟢 on-track'],['at_risk','warn','🟡 at-risk'],['off_track','bad','🔴 off-track']];
-const HMAP=Object.fromEntries(HEALTHS.map(h=>[h[0],h]));
-const STAGE_STATUS=[['todo','neutral','⚪ 待开始'],['running','run','🟡 进行中'],['done','done','✅ 已完成'],['blocked','blocked','🔴 阻塞']];
+const STAGE_STATUS=[['todo','neutral','⚪ 未开始'],['running','run','🟡 进行中'],['done','done','✅ 已完成']];
 const SMAP=Object.fromEntries(STAGE_STATUS.map(s=>[s[0],s]));
+// 固定 5 阶段（名称 + 产出物），与后端一致，仅用于新建目标时展示
+const FIXED_STAGES=[['业务需求确定','业务流程图 + 建模图'],['方案确定','方案 spec'],['开发完成','测试 spec'],['测试','测试报告'],['发布上线','上线（release note）']];
 
-const state={view:'workspace',lineId:null,line:null,cycleId:null,
-  lines:[],cycles:[],goals:[],byId:{},roots:[],healthFilter:'all',expanded:new Set(),
+const state={view:'lines',lineId:null,line:null,cycleId:null,
+  lines:[],cycles:[],goals:[],byId:{},roots:[],expanded:new Set(),
   users:[],me:null,jira:null};
 function currentUser(){return state.me;}
 
@@ -263,8 +263,6 @@ async function api(path,{method='GET',body}={}){
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fdate=d=>d||'—';
 function toast(msg,err){const t=document.getElementById('toast');t.textContent=msg;t.className='toast show'+(err?' err':'');setTimeout(()=>t.className='toast',2200);}
-function healthPill(h){const x=HMAP[h]||HMAP.on_track;return `<span class="pill ${x[1]}">${x[2]}</span>`;}
-function healthName(h){return (HMAP[h]||HMAP.on_track)[2];}
 function stagePill(s){const x=SMAP[s]||SMAP.todo;return `<span class="pill ${x[1]}">${x[2]}</span>`;}
 function pipeHtml(stages){
   return stages.map(st=>{const cls=st.status==='running'?'run':st.status;
@@ -289,9 +287,8 @@ async function loadGlobal(){
     const act=state.cycles.find(c=>c.status==='active');
     state.cycleId=act?act.id:(state.cycles[0]?state.cycles[0].id:null);
   }
-  if(state.lineId===null&&state.lines[0])state.lineId=state.lines[0].id;
   state.line=state.lines.find(l=>l.id===state.lineId)||null;
-  renderCyclePicker();renderMeBox();
+  renderMeBox();
 }
 function renderMeBox(){
   const el=document.getElementById('meBox');if(!el)return;
@@ -309,28 +306,22 @@ async function loadGoals(){
   state.roots=state.goals.filter(g=>g.parent_id===null||!state.byId[g.parent_id]);
 }
 function childrenOf(id){return state.goals.filter(g=>g.parent_id===id).sort((a,b)=>a.sort_order-b.sort_order||a.id-b.id);}
+function expandAll(){state.expanded=new Set(state.goals.filter(g=>childrenOf(g.id).length).map(g=>g.id));}
 
 // ---------- routing ----------
-function renderCyclePicker(){
-  const sel=document.getElementById('cycleSel');
-  sel.innerHTML=state.cycles.map(c=>`<option value="${c.id}" ${c.id===state.cycleId?'selected':''}>${esc(c.name)} · ${c.status==='active'?'进行中':'已归档'}</option>`).join('');
-}
-document.getElementById('cycleSel').onchange=async e=>{
-  state.cycleId=Number(e.target.value);
-  if(state.view==='workspace')await loadGoals();
-  render();
-};
 function setNavActive(){
-  document.querySelectorAll('#nav-main a[data-nav]').forEach(a=>a.classList.toggle('active',a.dataset.nav===state.view));
+  const v=state.view==='workspace'?'lines':state.view;
+  document.querySelectorAll('#nav-main a[data-nav]').forEach(a=>a.classList.toggle('active',a.dataset.nav===v));
 }
 async function go(view){
   state.view=view;setNavActive();
-  if(view==='workspace')await loadGoals();
   render();
 }
 async function selectLine(id){
   state.lineId=Number(id);state.line=state.lines.find(l=>l.id===state.lineId)||null;
-  await go('workspace');
+  if(state.cycleId===null){const act=state.cycles.find(c=>c.status==='active');state.cycleId=act?act.id:(state.cycles[0]?state.cycles[0].id:null);}
+  state.view='workspace';setNavActive();
+  await loadGoals();expandAll();render();
 }
 document.querySelectorAll('#nav-main a[data-nav]').forEach(a=>a.onclick=()=>go(a.dataset.nav));
 
@@ -339,7 +330,7 @@ function crumb(txt){document.getElementById('crumb').innerHTML=txt;}
 function render(){
   const c=document.getElementById('content');
   setNavActive();
-  if(state.view==='workspace'){crumb('目标计划');return renderWorkspace(c);}
+  if(state.view==='workspace'){crumb('业务线 <span>/ '+esc(state.line?state.line.name:'')+' · 目标计划</span>');return renderWorkspace(c);}
   if(state.view==='lines'){crumb('业务线');return renderLines(c);}
   if(state.view==='cycles'){crumb('周期');return renderCycles(c);}
   if(state.view==='settings'){crumb('用户 / 集成');return renderSettings(c);}
@@ -466,8 +457,7 @@ function laneBars(g,r){
 }
 function visibleGoals(){
   const out=[];
-  const froots=state.roots.filter(g=>state.healthFilter==='all'||g.health===state.healthFilter);
-  (function walk(list,depth){list.forEach(g=>{out.push({g,depth});if(state.expanded.has(g.id))walk(childrenOf(g.id),depth+1);});})(froots,0);
+  (function walk(list,depth){list.forEach(g=>{out.push({g,depth});if(state.expanded.has(g.id))walk(childrenOf(g.id),depth+1);});})(state.roots,0);
   return out;
 }
 function wsRowHtml(g,depth,r){
@@ -481,7 +471,7 @@ function wsRowHtml(g,depth,r){
     ${chev}
     <div class="gt" data-act="editGoal" data-id="${g.id}" title="点击编辑目标">
       <b>${lv} ${esc(g.title)}</b>
-      <div class="gt-meta"><span>👤 ${esc(g.owner)||'—'}</span>${healthPill(g.health)}${jira}</div>
+      <div class="gt-meta"><span>👤 ${esc(g.owner)||'—'}</span>${jira}</div>
     </div>
     <div class="rbtns">
       <button class="btn sm" data-act="addChild" data-id="${g.id}" title="加子目标">＋</button>
@@ -492,36 +482,37 @@ function wsRowHtml(g,depth,r){
   return `<div class="grow2">${left}${lane}</div>`;
 }
 function renderWorkspace(c){
-  if(!state.lines.length){c.innerHTML=`<div class="empty">还没有业务线。<br/><button class="btn primary" data-act="go" data-id="lines" style="margin-top:12px">去新建业务线</button></div>`;return;}
-  const lineOpts=state.lines.map(l=>`<option value="${l.id}" ${l.id===state.lineId?'selected':''}>${esc(l.name)}</option>`).join('');
-  const chips=[['all','全部']].concat(HEALTHS.map(h=>[h[0],h[2]]))
-    .map(([k,l])=>`<button class="chip ${state.healthFilter===k?'active':''}" data-act="filterHealth" data-id="${k}">${l}</button>`).join('');
+  const cycleOpts=state.cycles.map(cy=>`<option value="${cy.id}" ${cy.id===state.cycleId?'selected':''}>${esc(cy.name)} · ${cy.status==='active'?'进行中':'已归档'}</option>`).join('');
+  const anyExpandable=state.goals.some(g=>childrenOf(g.id).length);
+  const allExpanded=anyExpandable&&state.goals.filter(g=>childrenOf(g.id).length).every(g=>state.expanded.has(g.id));
   const rows=visibleGoals();
   const r=computeRange(state.goals);state.gr=r;
   const body=rows.length?rows.map(({g,depth})=>wsRowHtml(g,depth,r)).join('')
     :`<div class="grow2"><div class="gleft" style="color:var(--muted)">该周期下还没有目标 →</div><div class="glane" style="width:${r.width}px">${laneGrid(r)}</div></div>`;
   c.innerHTML=`
     <div class="ws-head">
-      <span class="muted" style="font-size:12px">业务线</span>
-      <select id="wsLine">${lineOpts}</select>
-      <button class="btn primary sm" data-act="newGoal">＋ 新建目标</button>
-      <span style="width:6px"></span><span class="muted" style="font-size:12px">健康</span>${chips}
+      <button class="btn sm" data-act="go" data-id="lines">← 业务线</button>
+      <b style="font-size:16px">${esc(state.line?state.line.name:'')}</b>
+      ${state.line&&state.line.jira_project_key?`<span class="tag" title="本业务线的目标都建到这个 Jira 项目">Jira 项目 ${esc(state.line.jira_project_key)}</span>`:`<span class="pill bad" style="font-size:11px">未设 Jira 项目</span>`}
       <span style="flex:1"></span>
-      <span class="tag cyc">${esc(cycleName(state.cycleId))}</span>
+      <span class="muted" style="font-size:12px">周期</span>
+      <select id="wsCycle" style="width:auto">${cycleOpts}</select>
+      ${anyExpandable?`<button class="btn sm" data-act="toggleAll" data-id="${allExpanded?'collapse':'expand'}">${allExpanded?'全部收起':'全部展开'}</button>`:''}
+      <button class="btn primary sm" data-act="newGoal">＋ 新建目标</button>
     </div>
     <div class="legend">
       <span class="lg"><span class="sw" style="background:var(--ok)"></span>已完成</span>
       <span class="lg"><span class="sw" style="background:var(--warn)"></span>进行中</span>
-      <span class="lg"><span class="sw" style="background:var(--bad)"></span>阻塞</span>
-      <span class="lg"><span class="sw" style="background:#cbd5e1"></span>待开始</span>
+      <span class="lg"><span class="sw" style="background:#cbd5e1"></span>未开始</span>
       <span class="lg"><span class="sw today"></span>今天</span>
-      <span class="muted">· 一行 = 一个目标的 5 阶段计划；拖动阶段条改期、拖两端改起止、点条改状态 · 点标题编辑 · 🔗 去 Jira</span>
+      <span class="muted">· 一行 = 一个目标的 5 阶段计划；拖动阶段条改期、拖两端改起止 · 点标题编辑目标与阶段 · 🔗 去 Jira</span>
     </div>
     <div class="gantt"><div class="gscroll">
       <div class="grow2 gaxis"><div class="gleft">目标 / 计划</div><div class="glane" style="width:${r.width}px">${monthLabels(r)}${laneGrid(r)}</div></div>
       ${body}
     </div></div>`;
-  const sel=document.getElementById('wsLine');if(sel)sel.onchange=e=>selectLine(e.target.value);
+  const sel=document.getElementById('wsCycle');
+  if(sel)sel.onchange=async e=>{state.cycleId=Number(e.target.value);await loadGoals();expandAll();render();};
 }
 
 // ================= modals =================
@@ -540,6 +531,22 @@ function pickSeg(el){el.parentNode.querySelectorAll('.seg').forEach(s=>s.classLi
 function segVal(id){const a=document.querySelector('#'+id+' .seg.active');return a?a.dataset.seg:null;}
 
 // goal create / edit
+function stageEditorHTML(goal){
+  const stages=goal?goal.stages.slice().sort((a,b)=>a.stage_index-b.stage_index)
+    :FIXED_STAGES.map((s,i)=>({stage_index:i,name:s[0],deliverable:s[1],status:'todo',start_date:'',end_date:''}));
+  const rows=stages.map((s,i)=>`
+    <div class="secard">
+      <div class="se-head"><b>${i+1}. ${esc(s.name)}</b><span class="muted" style="font-size:11.5px">产出物：${esc(s.deliverable)}</span></div>
+      <div class="two" style="margin-top:6px">
+        <div class="field" style="margin-bottom:6px"><label>开始</label><input id="s${i}_start" type="date" value="${s.start_date||''}"/></div>
+        <div class="field" style="margin-bottom:6px"><label>结束</label><input id="s${i}_end" type="date" value="${s.end_date||''}"/></div>
+      </div>
+      ${segHTML('s'+i+'_status',STAGE_STATUS,s.status||'todo')}
+    </div>`).join('');
+  return `<div class="section-title" style="margin:16px 0 8px"><h3 style="font-size:14px">交付 5 阶段（名称固定，可排期 / 改状态 / 传产出物）</h3></div>
+    <div id="attBox" class="note" style="margin:0 0 10px;font-size:12px">📎 产出物上传在该目标的 Jira issue 上。</div>
+    ${rows}`;
+}
 function goalForm(goal,parentId){
   const cycleOpts=state.cycles.map(c=>`<option value="${c.id}" ${((goal?goal.cycle_id:state.cycleId)===c.id)?'selected':''}>${esc(c.name)}</option>`).join('');
   const parentGoals=state.goals.filter(g=>!goal||g.id!==goal.id);
@@ -554,27 +561,43 @@ function goalForm(goal,parentId){
     </div>
     <div class="field"><label>父目标（决定它在树里的位置）</label><select id="g_parent">${parentOpts}</select></div>
     <div class="two">
-      <div class="field"><label>开始</label><input id="g_start" type="date" value="${goal&&goal.start_date?goal.start_date:''}"/></div>
-      <div class="field"><label>结束</label><input id="g_end" type="date" value="${goal&&goal.end_date?goal.end_date:''}"/></div>
+      <div class="field"><label>目标开始</label><input id="g_start" type="date" value="${goal&&goal.start_date?goal.start_date:''}"/></div>
+      <div class="field"><label>目标结束</label><input id="g_end" type="date" value="${goal&&goal.end_date?goal.end_date:''}"/></div>
     </div>
-    <div class="field"><label>健康度（人工判断）</label>${segHTML('g_health',HEALTHS,goal?goal.health:'on_track')}</div>
-    ${goal?'':`<div class="field"><label>Jira</label><label style="font-weight:400;display:flex;align-items:center;gap:8px;color:var(--ink);cursor:pointer"><input type="checkbox" id="g_sync" checked style="width:auto"/> 建目标后同步到 Jira（在该业务线项目下建 issue）</label></div>`}`;
+    ${goal?'':`<div class="field"><label>Jira</label><label style="font-weight:400;display:flex;align-items:center;gap:8px;color:var(--ink);cursor:pointer"><input type="checkbox" id="g_sync" checked style="width:auto"/> 建目标后同步到 Jira（在该业务线项目下建 issue）</label></div>`}
+    ${stageEditorHTML(goal)}`;
 }
 function openGoalForm(goal,parentId){
+  const sortedStages=goal?goal.stages.slice().sort((a,b)=>a.stage_index-b.stage_index):null;
   openModal(goal?'编辑目标':'新建目标',goalForm(goal,parentId));
+  // 已同步的目标：拉 Jira 附件（产出物），列成可点链接
+  if(goal&&goal.jira_key){
+    api('/goals/'+goal.id+'/jira/attachments').then(d=>{
+      const box=document.getElementById('attBox');if(!box)return;
+      const atts=(d&&d.attachments)||[];
+      const up=`<a href="${esc(goal.jira_url||'#')}" target="_blank">${esc(goal.jira_key)} ↗</a>`;
+      box.innerHTML=atts.length
+        ?`📎 Jira 已上传产出物：`+atts.map(a=>`<a href="${esc(a.url)}" target="_blank" style="margin-right:10px">${esc(a.filename)}</a>`).join('')+`　·　去 ${up} 上传更多`
+        :`📎 该目标 Jira issue（${up}）暂无附件——产出物在那里上传。`;
+    }).catch(()=>{});
+  }
   modalSave.handler=async()=>{
     const title=val('g_title');if(!title)return toast('标题不能填空',true);
     const ouid=val('g_owner_user')?Number(val('g_owner_user')):null;
     const oname=ouid?((state.users.find(u=>u.id===ouid)||{}).name||''):'';
-    const body={title,owner:oname,owner_user_id:ouid,health:segVal('g_health'),
+    const body={title,owner:oname,owner_user_id:ouid,
       cycle_id:Number(val('g_cycle'))||null,parent_id:val('g_parent')?Number(val('g_parent')):null,
       start_date:val('g_start')||null,end_date:val('g_end')||null};
-    if(goal){await api('/goals/'+goal.id,{method:'PATCH',body});toast('已更新');}
-    else{
-      body.business_line_id=state.lineId;
+    const stageVals=[0,1,2,3,4].map(i=>({status:segVal('s'+i+'_status'),start_date:val('s'+i+'_start')||null,end_date:val('s'+i+'_end')||null}));
+    if(goal){
+      await api('/goals/'+goal.id,{method:'PATCH',body});
+      for(let i=0;i<sortedStages.length&&i<5;i++)await api('/stages/'+sortedStages[i].id,{method:'PATCH',body:stageVals[i]});
+      toast('已更新目标与阶段');
+    }else{
+      body.business_line_id=state.lineId;body.stages=stageVals;
       const sync=document.getElementById('g_sync');body.sync_to_jira=sync?sync.checked:false;
       const res=await api('/goals',{method:'POST',body});
-      if(body.parent_id)state.expanded.add(body.parent_id);  // 建子目标后自动展开父，立刻可见
+      if(body.parent_id)state.expanded.add(body.parent_id);  // 建子目标后自动展开父
       if(res&&res.jira_error)toast('目标已建，但同步 Jira 失败：'+res.jira_error,true);
       else if(res&&res.jira_key)toast('已创建并同步 Jira：'+res.jira_key);
       else toast('已创建目标（含 5 阶段）');
@@ -585,15 +608,15 @@ function openGoalForm(goal,parentId){
 
 // stage edit
 function openStageForm(stage){
-  openModal(`编辑阶段 · ${stage.stage_index+1}. ${stage.name}`,`
+  openModal(`阶段 · ${stage.stage_index+1}. ${stage.name}`,`
     <div class="field"><label>状态</label>${segHTML('st_status',STAGE_STATUS,stage.status)}</div>
     <div class="two">
       <div class="field"><label>开始</label><input id="st_start" type="date" value="${stage.start_date||''}"/></div>
       <div class="field"><label>结束</label><input id="st_end" type="date" value="${stage.end_date||''}"/></div>
     </div>
-    <div class="field"><label>关联 Jira Key（产出：${esc(stage.deliverable)}）</label><input id="st_jira" type="text" value="${esc(stage.jira_key)}" placeholder="QUOTE-1203"/></div>`);
+    <div class="muted" style="font-size:12px">产出物：${esc(stage.deliverable)}（在该目标的 Jira issue 上传）</div>`);
   modalSave.handler=async()=>{
-    const body={status:segVal('st_status'),start_date:val('st_start')||null,end_date:val('st_end')||null,jira_key:val('st_jira')};
+    const body={status:segVal('st_status'),start_date:val('st_start')||null,end_date:val('st_end')||null};
     await api('/stages/'+stage.id,{method:'PATCH',body});
     toast('阶段已更新');await loadGoals();render();closeModal();
   };
@@ -605,7 +628,7 @@ function openLineForm(line){
     <div class="field"><label>名称</label><input id="l_name" type="text" value="${line?esc(line.name):''}" placeholder="保险报价 Agent"/></div>
     <div class="field"><label>负责人</label><input id="l_owner" type="text" value="${line?esc(line.owner):''}" placeholder="李明"/></div>
     <div class="field"><label>描述</label><input id="l_desc" type="text" value="${line?esc(line.description):''}" placeholder="车险 / 财险智能报价"/></div>
-    <div class="field"><label>默认 Jira 项目 Key</label><input id="l_jira" type="text" value="${line?esc(line.jira_project_key):''}" placeholder="QUOTE"/></div>`);
+    <div class="field"><label>Jira 项目 Key（本业务线的目标都建到这个 Jira 项目）</label><input id="l_jira" type="text" value="${line?esc(line.jira_project_key):''}" placeholder="如 AI（对应 Jira 里的 AI项目管理）"/><div class="muted" style="font-size:11.5px;margin-top:4px">在 Jira 项目页地址里能看到，如 …/projects/<b>AI</b>。留空则该线的目标无法同步到 Jira。</div></div>`);
   modalSave.handler=async()=>{
     const name=val('l_name');if(!name)return toast('名称不能空',true);
     const body={name,owner:val('l_owner'),description:val('l_desc'),jira_project_key:val('l_jira')};
@@ -646,8 +669,8 @@ const actions={
   newCycle:()=>openCycleForm(null),
   editCycle:id=>openCycleForm(state.cycles.find(c=>c.id===Number(id))),
   delCycle:async id=>{if(!confirm('删除该周期？（其下若还有目标会被拦截）'))return;try{await api('/cycles/'+id,{method:'DELETE'});toast('已删除');if(state.cycleId===Number(id))state.cycleId=null;await loadGlobal();if(state.view==='workspace')await loadGoals();render();}catch(e){toast(e.message,true);}},
-  filterHealth:id=>{state.healthFilter=id;render();},
   toggle:id=>{const n=Number(id);if(state.expanded.has(n))state.expanded.delete(n);else state.expanded.add(n);render();},
+  toggleAll:id=>{if(id==='expand')expandAll();else state.expanded=new Set();render();},
   newGoal:()=>openGoalForm(null,null),
   addChild:id=>openGoalForm(null,id),
   editGoal:id=>openGoalForm(state.byId[Number(id)],null),

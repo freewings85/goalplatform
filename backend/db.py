@@ -13,7 +13,6 @@ from models import (
     Cycle,
     CycleStatus,
     Goal,
-    Health,
     KeyResult,
     Stage,
     StageStatus,
@@ -96,7 +95,7 @@ def _seed(s: Session) -> None:
     s.add_all([bl_quote, bl_cs, bl_claim])
     s.commit()
 
-    def add_goal(bl_id, cycle_id, parent_id, title, owner, health, win, order, krs, plan):
+    def add_goal(bl_id, cycle_id, parent_id, title, owner, win, order, krs, plan):
         start, end = None, None
         if win:
             a, b = [x.strip() for x in win.split("~")]
@@ -105,7 +104,7 @@ def _seed(s: Session) -> None:
         g = Goal(
             business_line_id=bl_id, cycle_id=cycle_id, parent_id=parent_id,
             title=title, owner=owner, owner_user_id=user_id.get(owner),
-            health=Health(health), start_date=start, end_date=end, sort_order=order,
+            start_date=start, end_date=end, sort_order=order,
         )
         s.add(g)
         s.commit()
@@ -120,7 +119,7 @@ def _seed(s: Session) -> None:
     # 保险报价 Agent 的目标树
     o1 = add_goal(
         bl_quote.id, q3.id, None,
-        "把报价 Agent 做成可规模化交付的标品", "李明", "at_risk", "07-01 ~ 09-30", 0,
+        "把报价 Agent 做成可规模化交付的标品", "李明", "07-01 ~ 09-30", 0,
         [("KR1 · 报价准确率 88% → 95%", "当前 92%"),
          ("KR2 · 平均报价时延 9s → 3s", "当前 5s"),
          ("KR3 · 接入业务方 2 → 8 家", "当前 4 家")],
@@ -130,7 +129,7 @@ def _seed(s: Session) -> None:
     )
     add_goal(
         bl_quote.id, q3.id, o1.id,
-        "O1.1 报价引擎重构（可维护 / 可扩展）", "王芳", "on_track", "07-01 ~ 08-20", 0,
+        "O1.1 报价引擎重构（可维护 / 可扩展）", "王芳", "07-01 ~ 08-20", 0,
         [("KR · 单测覆盖率 60% → 90%", "当前 84%")],
         [("done", "2026-07-01", "2026-07-04"), ("done", "2026-07-04", "2026-07-08"),
          ("running", "2026-07-08", "2026-07-30"), ("todo", "2026-07-30", "2026-08-12"),
@@ -138,16 +137,16 @@ def _seed(s: Session) -> None:
     )
     add_goal(
         bl_quote.id, q3.id, o1.id,
-        "O1.2 多业务方接入（SDK + SOP）", "张伟", "off_track", "07-10 ~ 09-25", 1,
+        "O1.2 多业务方接入（SDK + SOP）", "张伟", "07-10 ~ 09-25", 1,
         [("KR1 · 接入文档完成度 0 → 100%", "当前 40%"),
          ("KR2 · 接入 SDK 就绪 0 → 1", "当前 0")],
-        [("done", "2026-07-10", "2026-07-15"), ("blocked", "2026-07-15", "2026-07-22"),
+        [("done", "2026-07-10", "2026-07-15"), ("running", "2026-07-15", "2026-07-22"),
          ("todo", "2026-07-22", "2026-08-30"), ("todo", "2026-08-30", "2026-09-15"),
          ("todo", "2026-09-15", "2026-09-25")],
     )
     o2 = add_goal(
         bl_quote.id, q3.id, None,
-        "降本：单次报价 LLM 成本下降 40%", "陈磊", "on_track", "07-01 ~ 09-30", 1,
+        "降本：单次报价 LLM 成本下降 40%", "陈磊", "07-01 ~ 09-30", 1,
         [("KR1 · 缓存命中率 30% → 80%", "当前 68%"),
          ("KR2 · 单次成本 ¥0.12 → ¥0.07", "当前 ¥0.085")],
         [("done", "2026-07-01", "2026-07-06"), ("done", "2026-07-06", "2026-07-12"),
@@ -156,7 +155,7 @@ def _seed(s: Session) -> None:
     )
     add_goal(
         bl_quote.id, q3.id, o2.id,
-        "O2.1 Prompt 瘦身 + 缓存策略", "陈磊", "on_track", "07-05 ~ 09-10", 0,
+        "O2.1 Prompt 瘦身 + 缓存策略", "陈磊", "07-05 ~ 09-10", 0,
         [("KR · Prompt token 数下降 0 → 40%", "当前 28%")],
         [("done", "2026-07-05", "2026-07-09"), ("done", "2026-07-09", "2026-07-14"),
          ("running", "2026-07-14", "2026-08-15"), ("todo", "2026-08-15", "2026-08-30"),
@@ -166,7 +165,7 @@ def _seed(s: Session) -> None:
     # 智能客服 Agent（一个顶层目标，演示多业务线）
     add_goal(
         bl_cs.id, q3.id, None,
-        "客服首解率提升到 80%", "周琳", "on_track", "07-01 ~ 09-30", 0,
+        "客服首解率提升到 80%", "周琳", "07-01 ~ 09-30", 0,
         [("KR · 首解率 62% → 80%", "当前 71%")],
         [("running", "2026-07-01", "2026-07-24"), ("todo", "2026-07-24", "2026-08-10"),
          ("todo", "2026-08-10", "2026-08-30"), ("todo", "2026-08-30", "2026-09-15"),

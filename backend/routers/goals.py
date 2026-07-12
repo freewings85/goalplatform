@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 
 from db import get_session, make_stages
 from deps import current_user
-from jira_client import JiraError, add_link, assign_issue, create_issue, get_issue
+from jira_client import JiraError, add_link, assign_issue, create_issue, get_attachments, get_issue
 from jira_config import LINK_TYPE, auth_for_user, jira_issue_type
 from models import BusinessLine, Goal, KeyResult, Stage, User
 from schemas import GoalIn, GoalUpdate, JiraLinkIn, KRIn, KRUpdate, StageUpdate
@@ -99,7 +99,6 @@ def create_goal(payload: GoalIn, session: Session = Depends(get_session), user: 
         title=payload.title,
         owner=payload.owner,
         owner_user_id=payload.owner_user_id,
-        health=payload.health,
         start_date=payload.start_date,
         end_date=payload.end_date,
     )
@@ -245,6 +244,24 @@ def jira_sync(goal_id: int, session: Session = Depends(get_session), user: User 
     if err:
         raise HTTPException(502, err)
     return goal_dict(g, session, with_children=True)
+
+
+@router.get("/goals/{goal_id}/jira/attachments")
+def jira_attachments(goal_id: int, session: Session = Depends(get_session), user: User | None = Depends(current_user)):
+    """列出该目标 Jira issue 上已上传的附件（产出物）。未同步或取不到则返回空。"""
+    g = session.get(Goal, goal_id)
+    if not g:
+        raise HTTPException(404, "目标不存在")
+    if not g.jira_key:
+        return {"jira_key": "", "jira_url": "", "attachments": []}
+    auth = auth_for_user(session, user)
+    items = []
+    if auth.ok:
+        try:
+            items = get_attachments(auth, g.jira_key)
+        except Exception:
+            items = []
+    return {"jira_key": g.jira_key, "jira_url": g.jira_url, "attachments": items}
 
 
 @router.post("/goals/{goal_id}/jira/link")

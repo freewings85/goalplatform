@@ -6,7 +6,7 @@ from typing import Optional
 
 from sqlmodel import SQLModel
 
-from models import CycleStatus, Health, StageStatus
+from models import CycleStatus, StageStatus
 
 
 # ---- 业务线 ----
@@ -75,7 +75,6 @@ class GoalIn(SQLModel):
     title: str
     owner: str = ""
     owner_user_id: Optional[int] = None
-    health: Health = Health.on_track
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     krs: list[KRIn] = []
@@ -87,7 +86,6 @@ class GoalUpdate(SQLModel):
     title: Optional[str] = None
     owner: Optional[str] = None
     owner_user_id: Optional[int] = None
-    health: Optional[Health] = None
     cycle_id: Optional[int] = None
     parent_id: Optional[int] = None
     start_date: Optional[date] = None

@@ -120,3 +120,15 @@ def assign_issue(auth: JiraAuth, key: str, username: str) -> None:
     with _client(auth) as c:
         r = c.put(f"/rest/api/2/issue/{key}/assignee", json={"name": username})
         _raise(r)
+
+
+def get_attachments(auth: JiraAuth, key: str) -> list[dict]:
+    """取 issue 上已上传的附件（产出物）。返回 [{filename, url, size}]。"""
+    with _client(auth) as c:
+        r = c.get(f"/rest/api/2/issue/{key}", params={"fields": "attachment"})
+        _raise(r)
+        data = r.json()
+    out = []
+    for a in (data.get("fields", {}).get("attachment") or []):
+        out.append({"filename": a.get("filename", ""), "url": a.get("content", ""), "size": a.get("size", 0)})
+    return out
