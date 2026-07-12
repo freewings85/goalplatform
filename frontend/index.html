@@ -145,6 +145,38 @@
   .toast{position:fixed;right:20px;bottom:20px;background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transform:translateY(8px);transition:.2s;z-index:60}
   .toast.show{opacity:1;transform:none}
   .toast.err{background:var(--bad)}
+  /* ===== 工作台：目标树 + 甘特时间线（行对齐） ===== */
+  .ws-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 12px}
+  .ws-head select{width:auto;padding:7px 10px}
+  .legend{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--muted);margin:0 0 10px;flex-wrap:wrap}
+  .legend .lg{display:inline-flex;align-items:center;gap:6px}
+  .legend .sw{width:16px;height:10px;border-radius:3px;display:inline-block}
+  .legend .sw.today{width:2px;height:14px;background:var(--primary);opacity:.7;border-radius:0}
+  .gantt{border:1px solid var(--line);border-radius:var(--radius);background:#fff;box-shadow:var(--shadow)}
+  .gscroll{overflow-x:auto;position:relative}
+  .grow2{display:flex;align-items:stretch;border-bottom:1px solid var(--line);min-height:42px}
+  .grow2:last-child{border-bottom:none}
+  .grow2:hover .gleft{background:#f8fafc}
+  .grow2.sel .gleft{background:var(--primary-weak)}
+  .gleft{position:sticky;left:0;z-index:2;width:330px;min-width:330px;background:#fff;border-right:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:6px 10px}
+  .gleft .gt{flex:1;min-width:0}
+  .gleft .gt b{font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px}
+  .gleft .gt .gt-meta{color:var(--muted);font-size:11.5px;margin-top:2px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .gleft .rbtns{display:flex;gap:3px;flex-shrink:0;opacity:0;transition:.1s}
+  .grow2:hover .rbtns{opacity:1}
+  .glane{position:relative;flex:1;min-width:360px}
+  .gaxis{position:sticky;top:0;z-index:4;background:#fbfcfe}
+  .gaxis .gleft{background:#fbfcfe;font-weight:600;font-size:12px;color:var(--muted)}
+  .gaxis .glane{height:32px}
+  .gridline{position:absolute;top:0;bottom:0;width:1px;background:#eef2f7;z-index:0}
+  .gmlabel{position:absolute;top:9px;font-size:11px;color:var(--muted);white-space:nowrap;padding-left:5px}
+  .today{position:absolute;top:0;bottom:0;width:2px;background:var(--primary);opacity:.55;z-index:1}
+  .gtrack{position:absolute;height:6px;top:calc(50% - 3px);border-radius:3px;background:#eef2f7;z-index:0}
+  .gseg{position:absolute;height:15px;top:calc(50% - 7.5px);border-radius:4px;z-index:1;cursor:pointer;box-shadow:0 0 0 2px #fff}
+  .gseg:hover{filter:brightness(1.06);outline:2px solid rgba(79,70,229,.5)}
+  .gseg.done{background:var(--ok)} .gseg.running{background:var(--warn)} .gseg.blocked{background:var(--bad)} .gseg.todo{background:#cbd5e1}
+  .gtip{position:fixed;z-index:70;background:var(--ink);color:#fff;font-size:12px;padding:6px 9px;border-radius:7px;pointer-events:none;white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.3);display:none}
+  .noplan{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:11.5px;color:#cbd5e1}
   [hidden]{display:none!important}
 </style>
 </head>
@@ -170,23 +202,15 @@
       <div class="logo">G</div>
       <div><b>GoalPlatform</b><small>目标与计划管理</small></div>
     </div>
-    <nav class="nav" id="nav-global">
-      <div class="sec">全局</div>
+    <nav class="nav" id="nav-main">
+      <div class="sec">管理</div>
+      <a data-nav="workspace">🎯 目标计划</a>
       <a data-nav="lines">🗂️ 业务线</a>
       <a data-nav="cycles">🗓️ 周期</a>
       <div class="sec">平台</div>
       <a data-nav="settings">👥 用户 / 集成</a>
     </nav>
-    <nav class="nav" id="nav-line" hidden>
-      <a class="backglobal" data-act="backGlobal">← 返回全局</a>
-      <div class="syspick">当前业务线<b id="linePick">—</b></div>
-      <div class="sec">业务线</div>
-      <a data-nav="goals">🎯 目标树</a>
-      <a data-nav="roadmap">🚦 交付流水线</a>
-      <div class="sec">其他</div>
-      <a data-nav="line-settings">⚙️ 业务线设置</a>
-    </nav>
-    <div class="side-foot">目标 / 计划原生管理<br/>执行链接 · Jira / EddPlatform（预留）</div>
+    <div class="side-foot">目标 / 计划在本平台<br/>执行 · 文档 · 附件都在 Jira</div>
   </aside>
 
   <div class="main">
@@ -211,6 +235,7 @@
   </div>
 </div>
 <div class="toast" id="toast"></div>
+<div class="gtip" id="gtip"></div>
 
 <script>
 const API='/api';
@@ -219,7 +244,7 @@ const HMAP=Object.fromEntries(HEALTHS.map(h=>[h[0],h]));
 const STAGE_STATUS=[['todo','neutral','⚪ 待开始'],['running','run','🟡 进行中'],['done','done','✅ 已完成'],['blocked','blocked','🔴 阻塞']];
 const SMAP=Object.fromEntries(STAGE_STATUS.map(s=>[s[0],s]));
 
-const state={mode:'global',view:'lines',lineId:null,line:null,cycleId:null,
+const state={view:'workspace',lineId:null,line:null,cycleId:null,
   lines:[],cycles:[],goals:[],byId:{},roots:[],healthFilter:'all',expanded:new Set(),
   users:[],me:null,oauth:null};
 function currentUser(){return state.me;}
@@ -263,6 +288,8 @@ async function loadGlobal(){
     const act=state.cycles.find(c=>c.status==='active');
     state.cycleId=act?act.id:(state.cycles[0]?state.cycles[0].id:null);
   }
+  if(state.lineId===null&&state.lines[0])state.lineId=state.lines[0].id;
+  state.line=state.lines.find(l=>l.id===state.lineId)||null;
   renderCyclePicker();renderMeBox();
 }
 function renderMeBox(){
@@ -289,56 +316,50 @@ function renderCyclePicker(){
 }
 document.getElementById('cycleSel').onchange=async e=>{
   state.cycleId=Number(e.target.value);
-  if(state.mode==='line'){await loadGoals();}
+  if(state.view==='workspace')await loadGoals();
   render();
 };
 function setNavActive(){
-  document.getElementById('nav-global').hidden=state.mode!=='global';
-  document.getElementById('nav-line').hidden=state.mode!=='line';
-  document.querySelectorAll('.nav a[data-nav]').forEach(a=>a.classList.toggle('active',a.dataset.nav===state.view));
+  document.querySelectorAll('#nav-main a[data-nav]').forEach(a=>a.classList.toggle('active',a.dataset.nav===state.view));
 }
-async function go(view){state.view=view;setNavActive();render();}
-async function enterLine(id){
-  state.lineId=Number(id);state.line=state.lines.find(l=>l.id===state.lineId);state.mode='line';state.view='goals';
-  document.getElementById('linePick').textContent=state.line?state.line.name:'—';
-  await loadGoals();setNavActive();render();
+async function go(view){
+  state.view=view;setNavActive();
+  if(view==='workspace')await loadGoals();
+  render();
 }
-function backGlobal(){state.mode='global';state.view='lines';state.lineId=null;state.line=null;setNavActive();render();}
-document.querySelectorAll('.nav a[data-nav]').forEach(a=>a.onclick=()=>go(a.dataset.nav));
+async function selectLine(id){
+  state.lineId=Number(id);state.line=state.lines.find(l=>l.id===state.lineId)||null;
+  await go('workspace');
+}
+document.querySelectorAll('#nav-main a[data-nav]').forEach(a=>a.onclick=()=>go(a.dataset.nav));
 
 // ---------- render dispatch ----------
 function crumb(txt){document.getElementById('crumb').innerHTML=txt;}
 function render(){
   const c=document.getElementById('content');
-  if(state.mode==='global'){
-    if(state.view==='lines'){crumb('业务线');return renderLines(c);}
-    if(state.view==='cycles'){crumb('周期');return renderCycles(c);}
-    if(state.view==='settings'){crumb('用户 / 集成');return renderSettings(c);}
-  }else{
-    const ln=state.line?esc(state.line.name):'';
-    if(state.view==='goals'){crumb(`全局 <span>/ ${ln} / 目标树</span>`);return renderGoals(c);}
-    if(state.view==='goal'){crumb(`全局 <span>/ ${ln} / 目标详情</span>`);return renderGoalDetail(c);}
-    if(state.view==='roadmap'){crumb(`全局 <span>/ ${ln} / 交付流水线</span>`);return renderRoadmap(c);}
-    if(state.view==='line-settings'){crumb(`全局 <span>/ ${ln} / 业务线设置</span>`);return renderLineSettings(c);}
-  }
+  setNavActive();
+  if(state.view==='workspace'){crumb('目标计划');return renderWorkspace(c);}
+  if(state.view==='lines'){crumb('业务线');return renderLines(c);}
+  if(state.view==='cycles'){crumb('周期');return renderCycles(c);}
+  if(state.view==='settings'){crumb('用户 / 集成');return renderSettings(c);}
 }
 
 // ---------- global: business lines ----------
 function renderLines(c){
   const rows=state.lines.map(l=>{
     const gc=0; // 计数在后端另算，这里保持简洁
-    return `<tr class="click" data-act="enterLine" data-id="${l.id}">
+    return `<tr class="click" data-act="selectLine" data-id="${l.id}">
       <td><b>${esc(l.name)}</b><div class="muted" style="font-size:12px">${esc(l.description)||'—'}</div></td>
       <td>${esc(l.owner)||'—'}</td>
       <td class="mono muted">${esc(l.jira_project_key)||'—'}</td>
       <td class="rowbtns">
         <button class="btn sm" data-act="editLine" data-id="${l.id}">编辑</button>
         <button class="btn sm danger" data-act="delLine" data-id="${l.id}">删除</button>
-        <button class="btn sm primary" data-act="enterLine" data-id="${l.id}">进入 →</button>
+        <button class="btn sm primary" data-act="selectLine" data-id="${l.id}">打开目标计划 →</button>
       </td></tr>`;
   }).join('');
   c.innerHTML=`<h2 class="page">业务线 <span class="muted">(${state.lines.length})</span></h2>
-    <p class="sub">每条业务线 = 一个 agent 产品；目标与计划都按业务线分组。点进去管理目标树。</p>
+    <p class="sub">每条业务线 = 一个 agent 产品；目标与计划都按业务线分组。点「打开」进工作台看它的目标树与甘特。</p>
     <div style="text-align:right;margin-bottom:12px"><button class="btn primary" data-act="newLine">＋ 新建业务线</button></div>
     ${state.lines.length?`<div class="tbl-wrap"><table>
       <thead><tr><th>业务线</th><th>负责人</th><th>默认 Jira</th><th style="width:230px"></th></tr></thead>
@@ -386,148 +407,115 @@ function renderSettings(c){
     <div class="note" style="margin-top:14px">用户不用手动建：谁用 Jira 登录过，就自动出现在这里。📊 EddPlatform 仍为预留。</div>`;
 }
 
-// ---------- line: goal tree ----------
-function goalRow(g,depth){
-  const isSub=depth>0;
-  const kids=childrenOf(g.id);
-  const hasKr=g.krs.length>0;
-  const canExpand=kids.length>0||hasKr;
-  const collapsed=!state.expanded.has(g.id);
-  const chev=canExpand?`<span class="chev ${collapsed?'col':''}" data-act="toggle" data-id="${g.id}">▾</span>`:`<span class="chev leaf">▾</span>`;
-  const lv=isSub?`<span class="lv sub">子目标</span>`:`<span class="lv">大目标</span>`;
-  let html=`<div class="grow" style="padding-left:${14+depth*24}px">
+// ---------- 工作台：目标树 + 甘特时间线 ----------
+function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function parseISO(s){const p=String(s).split('-');return new Date(+p[0],+p[1]-1,+p[2]);}
+function computeRange(goals){
+  const ds=[];const cyc=state.cycles.find(c=>c.id===state.cycleId);
+  if(cyc){cyc.start_date&&ds.push(cyc.start_date);cyc.end_date&&ds.push(cyc.end_date);}
+  goals.forEach(g=>{g.start_date&&ds.push(g.start_date);g.end_date&&ds.push(g.end_date);
+    (g.stages||[]).forEach(s=>{s.start_date&&ds.push(s.start_date);s.end_date&&ds.push(s.end_date);});});
+  const tISO=iso(new Date());ds.push(tISO);ds.sort();
+  const lo=parseISO(ds[0]),hi=parseISO(ds[ds.length-1]);
+  const md=new Date(lo.getFullYear(),lo.getMonth(),1);
+  const xd=new Date(hi.getFullYear(),hi.getMonth()+1,0);
+  const minMs=md.getTime(),maxMs=xd.getTime();
+  const days=Math.max(1,Math.round((maxMs-minMs)/86400000));
+  const width=Math.max(days*9,520);
+  return {minMs,maxMs,days,pxPerDay:width/days,width,tISO};
+}
+function xOf(isoStr,r){const t=parseISO(isoStr).getTime();return Math.max(0,Math.min(r.width,(t-r.minMs)/86400000*r.pxPerDay));}
+function laneGrid(r){
+  let h='';const d=new Date(r.minMs);
+  while(d.getTime()<=r.maxMs){h+=`<div class="gridline" style="left:${xOf(iso(d),r)}px"></div>`;d.setMonth(d.getMonth()+1);}
+  h+=`<div class="today" style="left:${xOf(r.tISO,r)}px"></div>`;return h;
+}
+function monthLabels(r){
+  let h='';const d=new Date(r.minMs),y0=new Date(r.minMs).getFullYear();
+  while(d.getTime()<=r.maxMs){const yl=(d.getMonth()===0||d.getFullYear()!==y0&&d.getTime()===r.minMs)?d.getFullYear()+' ':'';
+    h+=`<div class="gmlabel" style="left:${xOf(iso(d),r)}px">${yl}${d.getMonth()+1}月</div>`;d.setMonth(d.getMonth()+1);}
+  return h;
+}
+function stageSpans(g){
+  const out=[];const hasWin=g.start_date&&g.end_date;
+  let winStart,winDays;
+  if(hasWin){winStart=parseISO(g.start_date);winDays=Math.max(5,Math.round((parseISO(g.end_date)-winStart)/86400000));}
+  (g.stages||[]).slice().sort((a,b)=>a.stage_index-b.stage_index).forEach((st,i)=>{
+    let s=st.start_date,e=st.end_date;
+    if((!s||!e)&&hasWin){const per=winDays/5;
+      s=iso(new Date(winStart.getTime()+Math.round(i*per)*86400000));
+      e=iso(new Date(winStart.getTime()+Math.max(1,Math.round((i+1)*per)-1)*86400000));}
+    if(s&&e)out.push({id:st.id,idx:st.stage_index,name:st.name,status:st.status,s,e});
+  });
+  return out;
+}
+function laneBars(g,r){
+  let h='';
+  if(g.start_date&&g.end_date){const a=xOf(g.start_date,r),b=xOf(g.end_date,r);h+=`<div class="gtrack" style="left:${a}px;width:${Math.max(2,b-a)}px"></div>`;}
+  const segs=stageSpans(g);
+  if(!segs.length)return h+`<div class="noplan">未排期（编辑目标设起止）</div>`;
+  segs.forEach(sg=>{const a=xOf(sg.s,r),b=xOf(sg.e,r),w=Math.max(5,b-a);const cls=sg.status==='running'?'running':sg.status;
+    h+=`<div class="gseg ${cls}" style="left:${a}px;width:${w}px" data-act="editStage" data-id="${sg.id}" data-tip="${esc((sg.idx+1)+'. '+sg.name+' · '+SMAP[sg.status][2]+' · '+sg.s+' ~ '+sg.e)}"></div>`;});
+  return h;
+}
+function visibleGoals(){
+  const out=[];
+  const froots=state.roots.filter(g=>state.healthFilter==='all'||g.health===state.healthFilter);
+  (function walk(list,depth){list.forEach(g=>{out.push({g,depth});if(state.expanded.has(g.id))walk(childrenOf(g.id),depth+1);});})(froots,0);
+  return out;
+}
+function wsRowHtml(g,depth,r){
+  const kids=childrenOf(g.id),canExpand=kids.length>0,collapsed=!state.expanded.has(g.id);
+  const chev=canExpand?`<span class="chev ${collapsed?'col':''}" data-act="toggle" data-id="${g.id}" style="cursor:pointer">▾</span>`:`<span class="chev leaf">▾</span>`;
+  const lv=depth>0?`<span class="lv sub">子</span>`:`<span class="lv">大</span>`;
+  const jira=g.jira_key
+    ? `<a class="pill neutral" href="${esc(g.jira_url||'#')}" target="_blank" onclick="event.stopPropagation()" style="text-decoration:none;font-size:11px;padding:1px 7px">🔗 ${esc(g.jira_key)} ↗</a>`
+    : `<button class="btn sm" data-act="jiraSync" data-id="${g.id}" title="在 Jira 建 issue" style="padding:2px 7px">⤴ Jira</button>`;
+  const left=`<div class="gleft" style="padding-left:${10+depth*18}px">
     ${chev}
-    <div class="gmain" data-act="openGoal" data-id="${g.id}">
-      <div class="gtitle">${lv} ${esc(g.title)}</div>
-      <div class="gmeta"><span>👤 ${esc(g.owner)||'—'}</span><span>📅 ${fdate(g.start_date)} ~ ${fdate(g.end_date)}</span>
-        <span>${healthPill(g.health)}</span>${jiraChip(g)}
-        <span class="muted">${g.krs.length} KR · 阶段 ${curStageLabel(g.stages)}</span></div>
+    <div class="gt" data-act="editGoal" data-id="${g.id}" title="点击编辑目标">
+      <b>${lv} ${esc(g.title)}</b>
+      <div class="gt-meta"><span>👤 ${esc(g.owner)||'—'}</span>${healthPill(g.health)}${jira}</div>
     </div>
-    <div class="rowbtns">
-      <button class="btn sm" data-act="addChild" data-id="${g.id}">＋子目标</button>
-      <button class="btn sm" data-act="editGoal" data-id="${g.id}">编辑</button>
-      <button class="btn sm danger" data-act="delGoal" data-id="${g.id}">删除</button>
+    <div class="rbtns">
+      <button class="btn sm" data-act="addChild" data-id="${g.id}" title="加子目标">＋</button>
+      <button class="btn sm danger" data-act="delGoal" data-id="${g.id}" title="删除">🗑</button>
     </div>
   </div>`;
-  if(canExpand&&!collapsed&&hasKr){
-    html+=`<div class="krbox">`+g.krs.map(k=>`<div class="kr"><span class="knm">${esc(k.title)}</span><span class="kval"><b>${esc(k.current_value)||'—'}</b></span></div>`).join('')+`</div>`;
-  }
-  if(canExpand&&!collapsed){for(const k of kids)html+=goalRow(k,depth+1);}
-  return html;
+  const lane=`<div class="glane" style="width:${r.width}px">${laneGrid(r)}${laneBars(g,r)}</div>`;
+  return `<div class="grow2">${left}${lane}</div>`;
 }
-function renderGoals(c){
-  const filtered=state.roots.filter(g=>state.healthFilter==='all'||g.health===state.healthFilter);
-  const chips=[['all','全部'],['on_track','🟢 on-track'],['at_risk','🟡 at-risk'],['off_track','🔴 off-track']]
+function renderWorkspace(c){
+  if(!state.lines.length){c.innerHTML=`<div class="empty">还没有业务线。<br/><button class="btn primary" data-act="go" data-id="lines" style="margin-top:12px">去新建业务线</button></div>`;return;}
+  const lineOpts=state.lines.map(l=>`<option value="${l.id}" ${l.id===state.lineId?'selected':''}>${esc(l.name)}</option>`).join('');
+  const chips=[['all','全部'],['on_track','🟢'],['at_risk','🟡'],['off_track','🔴']]
     .map(([k,l])=>`<button class="chip ${state.healthFilter===k?'active':''}" data-act="filterHealth" data-id="${k}">${l}</button>`).join('');
-  const tree=filtered.length?filtered.map(g=>goalRow(g,0)).join(''):`<div class="empty">该周期下还没有目标，点「＋ 新建目标」。</div>`;
-  c.innerHTML=`<h2 class="page">目标树 <span class="tag cyc">${esc(cycleName(state.cycleId))}</span></h2>
-    <p class="sub">大目标 → 子目标递归拆解，每层带负责人 / 周期 / 健康度。展开看 KR，点标题进详情管理计划。</p>
-    <div class="filterbar">
-      <button class="btn primary sm" data-act="newGoal">＋ 新建目标</button>
-      <span style="width:8px"></span><span class="muted" style="font-size:12px">健康：</span>${chips}
-    </div>
-    <div class="tree">${tree}</div>
-    <div class="note" style="margin-top:14px">💡 本版做减法：健康度、阶段状态都是<b>人工选择</b>，不做达成度百分比计算。重点是把目标树和 5 阶段计划管起来。</div>`;
-}
-
-// ---------- line: goal detail ----------
-function renderGoalDetail(c){
-  const g=state.byId[state.goalDetailId];
-  if(!g){c.innerHTML=`<div class="empty">目标不存在或已删除。<br/><button class="btn" data-act="goGoals" style="margin-top:12px">← 回目标树</button></div>`;return;}
-  const isSub=g.parent_id!==null;
-  const krRows=g.krs.length?g.krs.map(k=>`<div class="kr">
-      <span class="knm">${esc(k.title)}</span>
-      <span class="kval"><b>${esc(k.current_value)||'—'}</b></span>
-      <span class="rowbtns"><button class="btn sm" data-act="editKr" data-id="${k.id}">改</button>
-      <button class="btn sm danger" data-act="delKr" data-id="${k.id}">删</button></span>
-    </div>`).join(''):`<div class="muted" style="padding:8px 0">还没有 KR。</div>`;
-  const stRows=g.stages.map(s=>`<tr>
-      <td><b>${s.stage_index+1}. ${esc(s.name)}</b></td>
-      <td class="muted">${esc(s.deliverable)}</td>
-      <td class="mono">${fdate(s.start_date)} ~ ${fdate(s.end_date)}</td>
-      <td>${stagePill(s.status)}</td>
-      <td class="mono muted">${s.jira_key?esc(s.jira_key)+' ↗':'—'}</td>
-      <td><button class="btn sm" data-act="editStage" data-id="${s.id}">编辑</button></td>
-    </tr>`).join('');
-  const kids=childrenOf(g.id);
-  const subSec=kids.length?`<div class="tree">`+kids.map(ch=>`<div class="grow">
-      <span class="chev leaf">▾</span>
-      <div class="gmain" data-act="openGoal" data-id="${ch.id}">
-        <div class="gtitle"><span class="lv sub">子目标</span> ${esc(ch.title)}</div>
-        <div class="gmeta"><span>👤 ${esc(ch.owner)||'—'}</span><span>📅 ${fdate(ch.start_date)} ~ ${fdate(ch.end_date)}</span><span>${healthPill(ch.health)}</span></div>
-      </div>
-      <div class="rowbtns"><button class="btn sm" data-act="editGoal" data-id="${ch.id}">编辑</button><button class="btn sm danger" data-act="delGoal" data-id="${ch.id}">删除</button></div>
-    </div>`).join('')+`</div>`:`<div class="note">🍃 叶子目标，无子目标。进度由 KR 与 5 阶段计划直接衡量、人工确认。</div>`;
+  const rows=visibleGoals();
+  const r=computeRange(state.goals);
+  const body=rows.length?rows.map(({g,depth})=>wsRowHtml(g,depth,r)).join('')
+    :`<div class="grow2"><div class="gleft" style="color:var(--muted)">该周期下还没有目标 →</div><div class="glane" style="width:${r.width}px">${laneGrid(r)}</div></div>`;
   c.innerHTML=`
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:2px">
-      <button class="btn sm" data-act="goGoals">← 目标树</button>
+    <div class="ws-head">
+      <span class="muted" style="font-size:12px">业务线</span>
+      <select id="wsLine">${lineOpts}</select>
+      <button class="btn primary sm" data-act="newGoal">＋ 新建目标</button>
+      <span style="width:6px"></span><span class="muted" style="font-size:12px">健康</span>${chips}
+      <span style="flex:1"></span>
+      <span class="tag cyc">${esc(cycleName(state.cycleId))}</span>
     </div>
-    <h2 class="page" style="margin-top:10px"><span class="lv" style="font-size:12px;vertical-align:middle;color:var(--primary);background:var(--primary-weak);padding:1px 7px;border-radius:5px">${isSub?'子目标':'大目标'}</span> ${esc(g.title)}</h2>
-    <p class="sub">${healthPill(g.health)} · 👤 ${esc(g.owner)||'—'} · <span class="tag cyc">${esc(cycleName(g.cycle_id))}</span> · 📅 ${fdate(g.start_date)} ~ ${fdate(g.end_date)}</p>
-    <div class="filterbar" style="margin-top:0">
-      <button class="btn primary sm" data-act="editGoal" data-id="${g.id}">✏️ 编辑目标</button>
-      <button class="btn sm" data-act="addChild" data-id="${g.id}">＋ 加子目标</button>
-      <button class="btn sm danger" data-act="delGoal" data-id="${g.id}">🗑 删除目标</button>
+    <div class="legend">
+      <span class="lg"><span class="sw" style="background:var(--ok)"></span>已完成</span>
+      <span class="lg"><span class="sw" style="background:var(--warn)"></span>进行中</span>
+      <span class="lg"><span class="sw" style="background:var(--bad)"></span>阻塞</span>
+      <span class="lg"><span class="sw" style="background:#cbd5e1"></span>待开始</span>
+      <span class="lg"><span class="sw today"></span>今天</span>
+      <span class="muted">· 一行 = 一个目标的 5 阶段计划，点条改状态/排期 · 点标题编辑 · 🔗 去 Jira</span>
     </div>
-
-    <div class="card pad" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <b style="font-size:13px">🔗 Jira</b>
-      ${g.jira_key
-        ? `<a class="pill neutral" href="${esc(g.jira_url||'#')}" target="_blank" style="text-decoration:none">${esc(g.jira_key)} ↗</a>
-           <button class="btn sm danger" data-act="jiraUnlink" data-id="${g.id}">解除关联</button>`
-        : `<span class="muted" style="font-size:12.5px">未关联</span>
-           <button class="btn sm primary" data-act="jiraSync" data-id="${g.id}">立即同步（建 issue）</button>
-           <button class="btn sm" data-act="jiraLink" data-id="${g.id}">关联已有…</button>`}
-      <span class="muted" style="font-size:11.5px;margin-left:auto">当前登录：${esc((state.me||{}).name||'—')}${(state.me&&state.me.cloud_id)?'':' · ⚠ 该账号未连 Jira 站点'}</span>
-    </div>
-
-    <div class="section-title"><h3>① 关键结果（KR）· 人工更新</h3><button class="btn sm" data-act="addKr" data-id="${g.id}">＋ 加 KR</button></div>
-    <div class="card pad">${krRows}</div>
-
-    <div class="section-title"><h3>② 交付计划 · 固定 5 阶段 <span class="muted" style="font-weight:500">· 当前：${curStageLabel(g.stages)}</span></h3></div>
-    <div class="card pad"><div class="pipe">${pipeHtml(g.stages)}</div></div>
-    <div class="tbl-wrap" style="margin-top:12px"><table>
-      <thead><tr><th>阶段节点</th><th>产出物</th><th>计划起止</th><th>状态</th><th>关联执行</th><th></th></tr></thead>
-      <tbody>${stRows}</tbody></table></div>
-
-    <div class="section-title"><h3>③ 子目标 <span class="muted">(${kids.length})</span></h3><button class="btn sm" data-act="addChild" data-id="${g.id}">＋ 加子目标</button></div>
-    ${subSec}`;
-}
-
-// ---------- line: roadmap ----------
-function renderRoadmap(c){
-  const order=[];
-  const walk=list=>list.forEach(g=>{order.push(g);walk(childrenOf(g.id));});
-  walk(state.roots);
-  const rows=order.length?order.map(g=>{
-    const isSub=g.parent_id!==null;
-    const lv=isSub?`<span class="lv sub">子目标</span>`:`<span class="lv">大目标</span>`;
-    return `<div class="grow">
-      <div class="gmain" data-act="openGoal" data-id="${g.id}">
-        <div class="gtitle">${lv} ${esc(g.title)} <span class="muted" style="font-weight:500;font-size:12px">· 👤 ${esc(g.owner)||'—'}</span> ${jiraChip(g)}</div>
-        <div class="pipe">${pipeHtml(g.stages)}</div>
-      </div>
-      <div style="text-align:right;flex-shrink:0"><div class="muted" style="font-size:11px">${esc(curStageLabel(g.stages))}</div></div>
-    </div>`;
-  }).join(''):`<div class="empty">该周期下还没有目标。</div>`;
-  c.innerHTML=`<h2 class="page">交付流水线 <span class="tag cyc">${esc(cycleName(state.cycleId))}</span></h2>
-    <p class="sub">每个目标（大 / 小）都走同一条固定 5 阶段。此页看各目标当前卡在哪。点目标进详情改计划。</p>
-    <div class="board"><div class="tree">${rows}</div></div>
-    <div class="note" style="margin-top:14px">🟢 已完成 · 🟡 进行中 · 🔴 阻塞 · ⚪ 待开始（均人工设置）。每阶段可关联 Jira 执行项。</div>`;
-}
-
-// ---------- line: settings ----------
-function renderLineSettings(c){
-  const l=state.line;
-  c.innerHTML=`<h2 class="page">业务线设置 · ${esc(l.name)}</h2>
-    <p class="sub">名称 / 负责人 / 描述 / 默认 Jira 项目。</p>
-    <div class="card pad" style="max-width:520px">
-      <div class="field"><label>业务线名称</label><input id="ls_name" type="text" value="${esc(l.name)}"/></div>
-      <div class="field"><label>负责人</label><input id="ls_owner" type="text" value="${esc(l.owner)}"/></div>
-      <div class="field"><label>描述</label><input id="ls_desc" type="text" value="${esc(l.description)}"/></div>
-      <div class="field"><label>默认 Jira 项目 Key</label><input id="ls_jira" type="text" value="${esc(l.jira_project_key)}"/></div>
-      <button class="btn primary" data-act="saveLineSettings">保存</button>
-    </div>`;
+    <div class="gantt"><div class="gscroll">
+      <div class="grow2 gaxis"><div class="gleft">目标 / 计划</div><div class="glane" style="width:${r.width}px">${monthLabels(r)}${laneGrid(r)}</div></div>
+      ${body}
+    </div></div>`;
+  const sel=document.getElementById('wsLine');if(sel)sel.onchange=e=>selectLine(e.target.value);
 }
 
 // ================= modals =================
@@ -589,20 +577,6 @@ function openGoalForm(goal,parentId){
   };
 }
 
-// KR add / edit
-function openKrForm(goalId,kr){
-  openModal(kr?'编辑 KR':'新增 KR',`
-    <div class="field"><label>KR 标题</label><input id="kr_title" type="text" value="${kr?esc(kr.title):''}" placeholder="报价准确率 88 → 95（%）"/></div>
-    <div class="field"><label>当前值（人工填，纯文本，不做计算）</label><input id="kr_val" type="text" value="${kr?esc(kr.current_value):''}" placeholder="当前 92%"/></div>`);
-  modalSave.handler=async()=>{
-    const title=val('kr_title');if(!title)return toast('KR 标题不能空',true);
-    const body={title,current_value:val('kr_val')};
-    if(kr)await api('/krs/'+kr.id,{method:'PATCH',body});
-    else await api('/goals/'+goalId+'/krs',{method:'POST',body});
-    toast('已保存');await loadGoals();render();closeModal();
-  };
-}
-
 // stage edit
 function openStageForm(stage){
   openModal(`编辑阶段 · ${stage.stage_index+1}. ${stage.name}`,`
@@ -650,7 +624,7 @@ function openCycleForm(cy){
     if(cy)await api('/cycles/'+cy.id,{method:'PATCH',body});
     else await api('/cycles',{method:'POST',body});
     toast('已保存');await loadGlobal();
-    if(state.mode==='line')await loadGoals();
+    if(state.view==='workspace')await loadGoals();
     render();closeModal();
   };
 }
@@ -658,33 +632,23 @@ function openCycleForm(cy){
 // ================= action dispatch =================
 const modalSave={handler:null};
 const actions={
-  backGlobal, closeModal,
+  closeModal, go:v=>go(v), selectLine:id=>selectLine(id),
   modalSave:async()=>{try{if(modalSave.handler)await modalSave.handler();}catch(e){toast(e.message,true);}},
-  enterLine:id=>enterLine(id),
   editLine:id=>openLineForm(state.lines.find(l=>l.id===Number(id))),
   newLine:()=>openLineForm(null),
   delLine:async id=>{if(!confirm('删除该业务线？（其下若还有目标会被拦截）'))return;try{await api('/business-lines/'+id,{method:'DELETE'});toast('已删除');await loadGlobal();render();}catch(e){toast(e.message,true);}},
   newCycle:()=>openCycleForm(null),
   editCycle:id=>openCycleForm(state.cycles.find(c=>c.id===Number(id))),
-  delCycle:async id=>{if(!confirm('删除该周期？（其下若还有目标会被拦截）'))return;try{await api('/cycles/'+id,{method:'DELETE'});toast('已删除');if(state.cycleId===Number(id))state.cycleId=null;await loadGlobal();render();}catch(e){toast(e.message,true);}},
+  delCycle:async id=>{if(!confirm('删除该周期？（其下若还有目标会被拦截）'))return;try{await api('/cycles/'+id,{method:'DELETE'});toast('已删除');if(state.cycleId===Number(id))state.cycleId=null;await loadGlobal();if(state.view==='workspace')await loadGoals();render();}catch(e){toast(e.message,true);}},
   filterHealth:id=>{state.healthFilter=id;render();},
   toggle:id=>{const n=Number(id);if(state.expanded.has(n))state.expanded.delete(n);else state.expanded.add(n);render();},
-  openGoal:id=>{state.goalDetailId=Number(id);go('goal');},
-  goGoals:()=>go('goals'),
   newGoal:()=>openGoalForm(null,null),
   addChild:id=>openGoalForm(null,id),
   editGoal:id=>openGoalForm(state.byId[Number(id)],null),
   delGoal:async id=>{const g=state.byId[Number(id)];const kids=childrenOf(Number(id));
     if(!confirm(`删除「${g.title}」？`+(kids.length?`\n注意：它有 ${kids.length} 个子目标，会一并删除。`:'')))return;
-    try{await api('/goals/'+id,{method:'DELETE'});toast('已删除');await loadGoals();
-      if(state.view==='goal'&&Number(id)===state.goalDetailId)go('goals');else render();}catch(e){toast(e.message,true);}},
-  addKr:id=>openKrForm(Number(id),null),
-  editKr:id=>{const g=state.byId[state.goalDetailId];openKrForm(g.id,g.krs.find(k=>k.id===Number(id)));},
-  delKr:async id=>{if(!confirm('删除该 KR？'))return;try{await api('/krs/'+id,{method:'DELETE'});toast('已删除');await loadGoals();render();}catch(e){toast(e.message,true);}},
-  editStage:id=>{const g=state.byId[state.goalDetailId];openStageForm(g.stages.find(s=>s.id===Number(id)));},
-  saveLineSettings:async()=>{try{const body={name:val('ls_name'),owner:val('ls_owner'),description:val('ls_desc'),jira_project_key:val('ls_jira')};
-    await api('/business-lines/'+state.lineId,{method:'PATCH',body});await loadGlobal();state.line=state.lines.find(l=>l.id===state.lineId);
-    document.getElementById('linePick').textContent=state.line.name;toast('已保存');render();}catch(e){toast(e.message,true);}},
+    try{await api('/goals/'+id,{method:'DELETE'});toast('已删除');await loadGoals();render();}catch(e){toast(e.message,true);}},
+  editStage:id=>{const sid=Number(id);let st=null;for(const g of state.goals){const f=(g.stages||[]).find(s=>s.id===sid);if(f){st=f;break;}}if(st)openStageForm(st);},
   // Jira 关联
   jiraSync:async id=>{try{await api('/goals/'+id+'/jira/sync',{method:'POST'});toast('已同步到 Jira');await loadGoals();render();}catch(e){toast(e.message,true);}},
   jiraLink:id=>{openModal('关联已有 Jira issue',`<div class="field"><label>Jira issue key</label><input id="jl_key" type="text" placeholder="QUOTE-1203"/></div><div class="hint" style="font-size:12px;color:var(--muted)">会用当前用户的凭据校验该 issue 是否存在。</div>`);
@@ -713,6 +677,15 @@ document.body.addEventListener('click',e=>{
   const el=e.target.closest('[data-act]');if(!el)return;
   const fn=actions[el.dataset.act];if(fn){e.preventDefault();fn(el.dataset.id,el,e);}
 });
+// 甘特条悬浮提示（阶段名 · 状态 · 起止）
+let _gtip;
+document.body.addEventListener('mousemove',e=>{
+  _gtip=_gtip||document.getElementById('gtip');
+  const seg=e.target.closest&&e.target.closest('.gseg[data-tip]');
+  if(seg){_gtip.textContent=seg.dataset.tip;_gtip.style.display='block';
+    _gtip.style.left=(e.clientX+14)+'px';_gtip.style.top=(e.clientY+16)+'px';}
+  else if(_gtip.style.display==='block'){_gtip.style.display='none';}
+});
 document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
 
 // ================= login gate + boot =================
@@ -728,7 +701,7 @@ async function boot(){
   catch(e){document.body.innerHTML='<div style="padding:40px;font-family:sans-serif">后端未启动？ '+esc(e.message)+'</div>';return;}
   if(!st.logged_in){showGate(st.configured);return;}
   state.me=st.user;hideGate();
-  try{await loadGlobal();render();}
+  try{await loadGlobal();if(state.view==='workspace')await loadGoals();render();}
   catch(e){document.getElementById('content').innerHTML=`<div class="empty">加载失败：${esc(e.message)}</div>`;}
 }
 boot();
