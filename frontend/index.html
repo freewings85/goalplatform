@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GoalPlatform · 目标与计划管理</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --panel:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#e5e8ee;
+    --side:#0f172a; --side-ink:#cbd5e1; --side-active:#1e293b;
+    --primary:#4f46e5; --primary-weak:#eef2ff;
+    --ok:#16a34a; --ok-weak:#e9f7ef; --bad:#dc2626; --bad-weak:#fdecec;
+    --warn:#d97706; --warn-weak:#fdf2e3; --info:#0ea5e9;
+    --radius:12px; --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .app{display:flex;min-height:100vh}
+  /* sidebar */
+  .sidebar{width:236px;background:var(--side);color:var(--side-ink);display:flex;flex-direction:column;flex-shrink:0}
+  .brand{display:flex;align-items:center;gap:10px;padding:18px 18px 14px}
+  .brand .logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#22d3ee);display:grid;place-items:center;color:#fff;font-weight:800}
+  .brand b{color:#fff;font-size:15px;letter-spacing:.3px}
+  .brand small{display:block;color:#64748b;font-size:11px;font-weight:500}
+  .nav{padding:8px}
+  .nav a{display:flex;align-items:center;gap:10px;padding:9px 12px;color:var(--side-ink);text-decoration:none;border-radius:8px;font-size:13.5px;cursor:pointer;margin:2px 0}
+  .nav a:hover{background:#1a2436;color:#fff}
+  .nav a.active{background:var(--side-active);color:#fff}
+  .nav .sec{color:#475569;font-size:11px;text-transform:uppercase;letter-spacing:.6px;padding:14px 12px 4px}
+  .nav a.backglobal{color:#93c5fd;font-size:12.5px;margin-bottom:2px}
+  .nav a.backglobal:hover{color:#fff}
+  .syspick{margin:2px 8px 8px;padding:9px 12px;background:#1e293b;border-radius:8px;color:#94a3b8;font-size:11px}
+  .syspick b{color:#fff;font-size:13.5px;display:block;margin-top:2px}
+  .side-foot{margin-top:auto;padding:14px 16px;border-top:1px solid #1e293b;font-size:12px;color:#64748b}
+  /* main */
+  .main{flex:1;display:flex;flex-direction:column;min-width:0}
+  .topbar{height:56px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 22px;position:sticky;top:0;z-index:5}
+  .crumb{font-weight:600;font-size:15px}
+  .crumb span{color:var(--muted);font-weight:500}
+  .cyclepick{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .cyclepick select{width:auto;padding:7px 10px}
+  .avatar{width:32px;height:32px;border-radius:50%;background:#4f46e5;color:#fff;display:grid;place-items:center;font-size:13px;font-weight:600}
+  .content{padding:22px 26px;max-width:1180px;width:100%}
+  h2.page{font-size:20px;margin:0 0 2px}
+  .sub{color:var(--muted);margin:0 0 18px}
+  /* cards */
+  .grid{display:grid;gap:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .pad{padding:16px 18px}
+  .section-title{display:flex;align-items:center;justify-content:space-between;margin:24px 0 12px}
+  .section-title h3{margin:0;font-size:15px}
+  /* buttons */
+  .btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:#fff;color:var(--ink);
+    padding:8px 14px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:500;text-decoration:none}
+  .btn:hover{background:#f8fafc}
+  .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+  .btn.primary:hover{background:#4338ca}
+  .btn.sm{padding:5px 10px;font-size:12px}
+  .btn.danger{color:var(--bad);border-color:#f3d4d4}
+  .btn.danger:hover{background:var(--bad-weak)}
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:11px 14px;border-bottom:1px solid var(--line);background:#fbfcfe}
+  td{padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tr.click{cursor:pointer}
+  tr.click:hover td{background:#f8fafc}
+  .tbl-wrap{overflow:hidden;border-radius:var(--radius);border:1px solid var(--line);background:#fff;box-shadow:var(--shadow)}
+  /* pills / badges */
+  .pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+  .pill.ok{background:var(--ok-weak);color:var(--ok)}
+  .pill.bad{background:var(--bad-weak);color:var(--bad)}
+  .pill.warn{background:var(--warn-weak);color:var(--warn)}
+  .pill.run{background:#fef9c3;color:#a16207}
+  .pill.neutral{background:#eef2f7;color:#475569}
+  .tag{display:inline-block;padding:1px 8px;border-radius:6px;background:#eef2f7;color:#475569;font-size:11.5px;margin-right:4px}
+  .tag.cyc{background:#e0f2fe;color:#0369a1}
+  .muted{color:var(--muted)} .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+  .hdot{width:9px;height:9px;border-radius:50%;display:inline-block;flex-shrink:0}
+  .hdot.ok{background:var(--ok)} .hdot.warn{background:var(--warn)} .hdot.bad{background:var(--bad)}
+  /* goal tree */
+  .tree{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+  .grow{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .grow:last-child{border-bottom:none}
+  .grow:hover{background:#f8fafc}
+  .chev{width:16px;text-align:center;color:var(--muted);font-size:11px;flex-shrink:0;cursor:pointer;user-select:none}
+  .chev.col{transform:rotate(-90deg)}
+  .chev.leaf{visibility:hidden}
+  .gmain{flex:1;min-width:0;cursor:pointer}
+  .gtitle{font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .gtitle .lv{font-size:10.5px;font-weight:700;color:var(--primary);background:var(--primary-weak);padding:1px 6px;border-radius:5px}
+  .gtitle .lv.sub{color:#0369a1;background:#e0f2fe}
+  .gmeta{color:var(--muted);font-size:12px;margin-top:3px;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .rowbtns{display:flex;gap:6px;flex-shrink:0}
+  .krbox{padding:2px 14px 12px 42px;background:#fbfcfe;border-bottom:1px solid var(--line)}
+  .kr{display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px dashed #eef2f7}
+  .kr:last-child{border-bottom:none}
+  .kr .knm{flex:1;font-size:12.5px}
+  .kr .kval{font-size:12px;color:var(--muted)}
+  .kr .kval b{color:var(--ink)}
+  /* 交付阶段流水线（固定 5 阶段步进器） */
+  .pipe{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 8px}
+  .step{display:flex;align-items:center;gap:8px;padding:7px 12px;border:1px solid var(--line);border-radius:999px;font-size:12.5px;background:#fff;color:var(--muted)}
+  .step .n{width:19px;height:19px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;background:#eef2f7;color:var(--muted);flex-shrink:0}
+  .step.done{background:var(--ok-weak);border-color:#bbe6cd;color:#15803d}
+  .step.done .n{background:var(--ok);color:#fff}
+  .step.run{background:#fef9c3;border-color:#fde68a;color:#a16207}
+  .step.run .n{background:var(--warn);color:#fff}
+  .step.blocked{background:var(--bad-weak);border-color:#f6c9c9;color:#991b1b}
+  .step.blocked .n{background:var(--bad);color:#fff}
+  .arr{color:#cbd5e1;align-self:center;font-size:12px}
+  .board .pipe{margin:6px 0 0}
+  .board .step{padding:5px 9px;font-size:11.5px}
+  .board .step .n{width:16px;height:16px;font-size:10px}
+  /* misc */
+  .row-flex{display:flex;gap:16px;flex-wrap:wrap}.row-flex>*{flex:1;min-width:280px}
+  .note{background:#f1f5ff;border:1px solid #dbe4ff;color:#3949ab;border-radius:10px;padding:10px 13px;font-size:12.5px;margin:2px 0 14px}
+  .empty{text-align:center;color:var(--muted);padding:40px 20px}
+  .kv{display:grid;grid-template-columns:112px 1fr;gap:8px 14px;font-size:13px}
+  .kv .k{color:var(--muted)}
+  .filterbar{display:flex;gap:8px;align-items:center;margin:14px 0 12px;flex-wrap:wrap}
+  .chip{padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:12.5px;cursor:pointer}
+  .chip.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .spacer{flex:1}
+  /* modal */
+  .modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:50}
+  .modal.open{display:flex}
+  .dialog{background:#fff;border-radius:16px;width:560px;max-width:92vw;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+  .dialog-h{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+  .dialog-h b{font-size:16px}
+  .x{cursor:pointer;color:var(--muted);font-size:20px;line-height:1;background:none;border:none}
+  .dialog-b{padding:18px 22px}
+  .dialog-f{padding:14px 22px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:6px;font-weight:600}
+  select,input[type=text],input[type=number],input[type=date]{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:#fff;font-family:inherit}
+  textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;min-height:60px;resize:vertical;background:#fff;font-family:inherit}
+  .segmented{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex-wrap:wrap}
+  .segmented .seg{padding:7px 12px;font-size:12.5px;background:#fff;border:none;border-right:1px solid var(--line);cursor:pointer;color:var(--muted)}
+  .segmented .seg:last-child{border-right:none}
+  .segmented .seg.active{background:var(--primary);color:#fff}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+  .toast{position:fixed;right:20px;bottom:20px;background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transform:translateY(8px);transition:.2s;z-index:60}
+  .toast.show{opacity:1;transform:none}
+  .toast.err{background:var(--bad)}
+  /* ===== 工作台：目标树 + 甘特时间线（行对齐） ===== */
+  .ws-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:2px 0 12px}
+  .ws-head select{width:auto;padding:7px 10px}
+  .legend{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--muted);margin:0 0 10px;flex-wrap:wrap}
+  .legend .lg{display:inline-flex;align-items:center;gap:6px}
+  .legend .sw{width:16px;height:10px;border-radius:3px;display:inline-block}
+  .legend .sw.today{width:2px;height:14px;background:var(--primary);opacity:.7;border-radius:0}
+  .gantt{border:1px solid var(--line);border-radius:var(--radius);background:#fff;box-shadow:var(--shadow)}
+  .gscroll{overflow-x:auto;position:relative}
+  .grow2{display:flex;align-items:stretch;border-bottom:1px solid var(--line);min-height:42px}
+  .grow2:last-child{border-bottom:none}
+  .grow2:hover .gleft{background:#f8fafc}
+  .grow2.sel .gleft{background:var(--primary-weak)}
+  .gleft{position:sticky;left:0;z-index:2;width:330px;min-width:330px;background:#fff;border-right:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:6px 10px}
+  .gleft .gt{flex:1;min-width:0}
+  .gleft .gt b{font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px}
+  .gleft .gt .gt-meta{color:var(--muted);font-size:11.5px;margin-top:2px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .gleft .rbtns{display:flex;gap:3px;flex-shrink:0;opacity:0;transition:.1s}
+  .grow2:hover .rbtns{opacity:1}
+  .glane{position:relative;flex:1;min-width:360px}
+  .gaxis{position:sticky;top:0;z-index:4;background:#fbfcfe}
+  .gaxis .gleft{background:#fbfcfe;font-weight:600;font-size:12px;color:var(--muted)}
+  .gaxis .glane{height:32px}
+  .gridline{position:absolute;top:0;bottom:0;width:1px;background:#eef2f7;z-index:0}
+  .gmlabel{position:absolute;top:9px;font-size:11px;color:var(--muted);white-space:nowrap;padding-left:5px}
+  .today{position:absolute;top:0;bottom:0;width:2px;background:var(--primary);opacity:.55;z-index:1}
+  .gtrack{position:absolute;height:6px;top:calc(50% - 3px);border-radius:3px;background:#eef2f7;z-index:0}
+  .gseg{position:absolute;height:15px;top:calc(50% - 7.5px);border-radius:4px;z-index:1;cursor:pointer;box-shadow:0 0 0 2px #fff}
+  .gseg:hover{filter:brightness(1.06);outline:2px solid rgba(79,70,229,.5)}
+  .gseg.done{background:var(--ok)} .gseg.running{background:var(--warn)} .gseg.blocked{background:var(--bad)} .gseg.todo{background:#cbd5e1}
+  .gtip{position:fixed;z-index:70;background:var(--ink);color:#fff;font-size:12px;padding:6px 9px;border-radius:7px;pointer-events:none;white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.3);display:none}
+  .noplan{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:11.5px;color:#cbd5e1}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<!-- 登录门：未用 Jira 登录时挡在最前 -->
+<div id="gate" style="display:none;position:fixed;inset:0;z-index:100;background:linear-gradient(135deg,#0f172a,#1e293b);color:#e2e8f0;align-items:center;justify-content:center">
+  <div style="width:420px;max-width:92vw;background:#fff;color:var(--ink);border-radius:16px;padding:30px 28px;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <div style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#6366f1,#22d3ee);display:grid;place-items:center;color:#fff;font-weight:800">G</div>
+      <div><b style="font-size:17px">GoalPlatform</b><div class="muted" style="font-size:12px">目标与计划管理</div></div>
+    </div>
+    <p class="muted" style="font-size:13px;margin:14px 0 18px">用你的 Jira（Atlassian）账号登录即可使用；登录后系统里的 Jira 跳转通常也免再登。</p>
+    <a class="btn primary" href="/api/auth/login" style="width:100%;justify-content:center;font-size:14px;padding:11px">🔓 用 Atlassian 账号登录</a>
+    <div id="gateWarn" class="note" style="margin-top:14px;display:none">⚠ 尚未配置 OAuth 应用（client_id / secret）。本地默认已指向 mock；真环境请先配置。</div>
+    <div style="text-align:center;margin-top:12px"><a class="muted" style="font-size:12px;cursor:pointer;text-decoration:underline" data-act="toggleGateCfg">⚙ 配置 OAuth 应用</a></div>
+    <div id="gateCfg" style="display:none;margin-top:12px;border-top:1px solid var(--line);padding-top:12px"></div>
+  </div>
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">G</div>
+      <div><b>GoalPlatform</b><small>目标与计划管理</small></div>
+    </div>
+    <nav class="nav" id="nav-main">
+      <div class="sec">管理</div>
+      <a data-nav="workspace">🎯 目标计划</a>
+      <a data-nav="lines">🗂️ 业务线</a>
+      <a data-nav="cycles">🗓️ 周期</a>
+      <div class="sec">平台</div>
+      <a data-nav="settings">👥 用户 / 集成</a>
+    </nav>
+    <div class="side-foot">目标 / 计划在本平台<br/>执行 · 文档 · 附件都在 Jira</div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb" id="crumb">业务线</div>
+      <div class="cyclepick">
+        <span class="muted" style="font-size:12px">周期</span>
+        <select id="cycleSel"></select>
+        <span id="meBox" style="display:flex;align-items:center;gap:8px;margin-left:6px"></span>
+      </div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<!-- 通用模态 -->
+<div class="modal" id="modal">
+  <div class="dialog">
+    <div class="dialog-h"><b id="mTitle"></b><button class="x" data-act="closeModal">×</button></div>
+    <div class="dialog-b" id="mBody"></div>
+    <div class="dialog-f" id="mFoot"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<div class="gtip" id="gtip"></div>
+
+<script>
+const API='/api';
+const HEALTHS=[['on_track','ok','🟢 on-track'],['at_risk','warn','🟡 at-risk'],['off_track','bad','🔴 off-track']];
+const HMAP=Object.fromEntries(HEALTHS.map(h=>[h[0],h]));
+const STAGE_STATUS=[['todo','neutral','⚪ 待开始'],['running','run','🟡 进行中'],['done','done','✅ 已完成'],['blocked','blocked','🔴 阻塞']];
+const SMAP=Object.fromEntries(STAGE_STATUS.map(s=>[s[0],s]));
+
+const state={view:'workspace',lineId:null,line:null,cycleId:null,
+  lines:[],cycles:[],goals:[],byId:{},roots:[],healthFilter:'all',expanded:new Set(),
+  users:[],me:null,oauth:null};
+function currentUser(){return state.me;}
+
+// ---------- helpers ----------
+async function api(path,{method='GET',body}={}){
+  const opt={method,headers:{},credentials:'same-origin'};
+  if(body!==undefined){opt.headers['Content-Type']='application/json';opt.body=JSON.stringify(body);}
+  const res=await fetch(API+path,opt);
+  if(res.status===204)return null;
+  const data=await res.json().catch(()=>null);
+  if(!res.ok)throw new Error((data&&data.detail)||('HTTP '+res.status));
+  return data;
+}
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fdate=d=>d||'—';
+function toast(msg,err){const t=document.getElementById('toast');t.textContent=msg;t.className='toast show'+(err?' err':'');setTimeout(()=>t.className='toast',2200);}
+function healthPill(h){const x=HMAP[h]||HMAP.on_track;return `<span class="pill ${x[1]}">${x[2]}</span>`;}
+function healthName(h){return (HMAP[h]||HMAP.on_track)[2];}
+function stagePill(s){const x=SMAP[s]||SMAP.todo;return `<span class="pill ${x[1]}">${x[2]}</span>`;}
+function pipeHtml(stages){
+  return stages.map(st=>{const cls=st.status==='running'?'run':st.status;
+    return `<div class="step ${cls==='todo'?'':cls}"><span class="n">${st.stage_index+1}</span>${esc(st.name)}</div>`;
+  }).join('<span class="arr">→</span>');
+}
+function curStageLabel(stages){
+  let idx=stages.findIndex(s=>s.status==='running'||s.status==='blocked');
+  if(idx<0){const done=stages.filter(s=>s.status==='done').length;idx=Math.min(done,stages.length-1);}
+  return `${stages[idx].name}（${idx+1}/5）`;
+}
+function cycleName(id){const c=state.cycles.find(c=>c.id===id);return c?c.name:'—';}
+function jiraChip(g){return g.jira_key?`<a class="pill neutral" href="${esc(g.jira_url||'#')}" target="_blank" onclick="event.stopPropagation()" style="text-decoration:none">🔗 ${esc(g.jira_key)} ↗</a>`:'';}
+
+// ---------- data loading ----------
+async function loadGlobal(){
+  state.cycles=await api('/cycles');
+  state.lines=await api('/business-lines');
+  state.users=await api('/users');
+  state.oauth=await api('/settings/oauth');
+  if(state.cycleId===null){
+    const act=state.cycles.find(c=>c.status==='active');
+    state.cycleId=act?act.id:(state.cycles[0]?state.cycles[0].id:null);
+  }
+  if(state.lineId===null&&state.lines[0])state.lineId=state.lines[0].id;
+  state.line=state.lines.find(l=>l.id===state.lineId)||null;
+  renderCyclePicker();renderMeBox();
+}
+function renderMeBox(){
+  const el=document.getElementById('meBox');if(!el)return;
+  if(!state.me){el.innerHTML='';return;}
+  el.innerHTML=`<span class="avatar" title="${esc(state.me.email||'')}">${esc((state.me.name||'?').slice(0,1))}</span>
+    <span style="font-size:12.5px">${esc(state.me.name)}</span>
+    <button class="btn sm" data-act="logout">退出</button>`;
+}
+async function loadGoals(){
+  if(state.lineId===null){state.goals=[];state.byId={};state.roots=[];return;}
+  const q=new URLSearchParams({business_line_id:state.lineId});
+  if(state.cycleId!==null)q.set('cycle_id',state.cycleId);
+  state.goals=await api('/goals?'+q.toString());
+  state.byId={};state.goals.forEach(g=>state.byId[g.id]=g);
+  state.roots=state.goals.filter(g=>g.parent_id===null||!state.byId[g.parent_id]);
+}
+function childrenOf(id){return state.goals.filter(g=>g.parent_id===id).sort((a,b)=>a.sort_order-b.sort_order||a.id-b.id);}
+
+// ---------- routing ----------
+function renderCyclePicker(){
+  const sel=document.getElementById('cycleSel');
+  sel.innerHTML=state.cycles.map(c=>`<option value="${c.id}" ${c.id===state.cycleId?'selected':''}>${esc(c.name)} · ${c.status==='active'?'进行中':'已归档'}</option>`).join('');
+}
+document.getElementById('cycleSel').onchange=async e=>{
+  state.cycleId=Number(e.target.value);
+  if(state.view==='workspace')await loadGoals();
+  render();
+};
+function setNavActive(){
+  document.querySelectorAll('#nav-main a[data-nav]').forEach(a=>a.classList.toggle('active',a.dataset.nav===state.view));
+}
+async function go(view){
+  state.view=view;setNavActive();
+  if(view==='workspace')await loadGoals();
+  render();
+}
+async function selectLine(id){
+  state.lineId=Number(id);state.line=state.lines.find(l=>l.id===state.lineId)||null;
+  await go('workspace');
+}
+document.querySelectorAll('#nav-main a[data-nav]').forEach(a=>a.onclick=()=>go(a.dataset.nav));
+
+// ---------- render dispatch ----------
+function crumb(txt){document.getElementById('crumb').innerHTML=txt;}
+function render(){
+  const c=document.getElementById('content');
+  setNavActive();
+  if(state.view==='workspace'){crumb('目标计划');return renderWorkspace(c);}
+  if(state.view==='lines'){crumb('业务线');return renderLines(c);}
+  if(state.view==='cycles'){crumb('周期');return renderCycles(c);}
+  if(state.view==='settings'){crumb('用户 / 集成');return renderSettings(c);}
+}
+
+// ---------- global: business lines ----------
+function renderLines(c){
+  const rows=state.lines.map(l=>{
+    const gc=0; // 计数在后端另算，这里保持简洁
+    return `<tr class="click" data-act="selectLine" data-id="${l.id}">
+      <td><b>${esc(l.name)}</b><div class="muted" style="font-size:12px">${esc(l.description)||'—'}</div></td>
+      <td>${esc(l.owner)||'—'}</td>
+      <td class="mono muted">${esc(l.jira_project_key)||'—'}</td>
+      <td class="rowbtns">
+        <button class="btn sm" data-act="editLine" data-id="${l.id}">编辑</button>
+        <button class="btn sm danger" data-act="delLine" data-id="${l.id}">删除</button>
+        <button class="btn sm primary" data-act="selectLine" data-id="${l.id}">打开目标计划 →</button>
+      </td></tr>`;
+  }).join('');
+  c.innerHTML=`<h2 class="page">业务线 <span class="muted">(${state.lines.length})</span></h2>
+    <p class="sub">每条业务线 = 一个 agent 产品；目标与计划都按业务线分组。点「打开」进工作台看它的目标树与甘特。</p>
+    <div style="text-align:right;margin-bottom:12px"><button class="btn primary" data-act="newLine">＋ 新建业务线</button></div>
+    ${state.lines.length?`<div class="tbl-wrap"><table>
+      <thead><tr><th>业务线</th><th>负责人</th><th>默认 Jira</th><th style="width:230px"></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`:`<div class="card pad empty">还没有业务线，点右上角新建。</div>`}`;
+}
+
+// ---------- global: cycles ----------
+function renderCycles(c){
+  const rows=state.cycles.map(cy=>`<tr>
+    <td><b>${esc(cy.name)}</b></td>
+    <td class="mono muted">${fdate(cy.start_date)} ~ ${fdate(cy.end_date)}</td>
+    <td>${cy.status==='active'?'<span class="pill run">● 进行中</span>':'<span class="pill neutral">已归档</span>'}</td>
+    <td class="rowbtns">
+      <button class="btn sm" data-act="editCycle" data-id="${cy.id}">编辑</button>
+      <button class="btn sm danger" data-act="delCycle" data-id="${cy.id}">删除</button>
+    </td></tr>`).join('');
+  c.innerHTML=`<h2 class="page">周期</h2>
+    <p class="sub">目标按周期（季度 / 月）迭代。周期状态人工切换：进行中 / 已归档。</p>
+    <div style="text-align:right;margin-bottom:12px"><button class="btn primary" data-act="newCycle">＋ 新建周期</button></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>周期</th><th>起止</th><th>状态</th><th style="width:160px"></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
+}
+
+// ---------- global: users / integration ----------
+function renderSettings(c){
+  const cfg=state.oauth||{};
+  const rows=state.users.map(u=>`<tr>
+    <td><b>${esc(u.name)}</b>${state.me&&u.id===state.me.id?' <span class="pill neutral">当前登录</span>':''}</td>
+    <td class="muted">${esc(u.email)||'—'}</td>
+    <td>${u.linked?'<span class="pill ok">● 已用 Jira 登录</span>':'<span class="pill neutral">未登录过</span>'}</td>
+    <td class="mono muted">${esc(u.account_id)||'—'}</td>
+    <td class="rowbtns"><button class="btn sm danger" data-act="delUser" data-id="${u.id}">删</button></td></tr>`).join('');
+  c.innerHTML=`<h2 class="page">用户 / 集成</h2>
+    <p class="sub">登录方式：用 Jira（Atlassian）账号登录，不存密码。用户由登录自动创建/认领。同步 Jira 用你登录后的授权。</p>
+    <div class="card pad" style="max-width:680px;margin-bottom:18px">
+      <h3 style="margin:0 0 4px">🔐 OAuth 应用（登录 Jira 用）</h3>
+      <p class="muted" style="font-size:12.5px;margin:0 0 12px">当前状态：${cfg.configured?'<span class="pill ok">● 已配置</span>':'<span class="pill bad">● 未配置</span>'}。本地默认已指向 mock（${esc(cfg.auth_base||'')}）。切真环境把 base 改成 auth/api.atlassian.com，填真 client_id/secret。</p>
+      ${oauthFormHTML(cfg,'oa')}
+    </div>
+    <div class="section-title"><h3>用户 <span class="muted">(${state.users.length})</span></h3></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>姓名</th><th>邮箱</th><th>登录状态</th><th>accountId</th><th style="width:80px"></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <div class="note" style="margin-top:14px">用户不用手动建：谁用 Jira 登录过，就自动出现在这里。📊 EddPlatform 仍为预留。</div>`;
+}
+
+// ---------- 工作台：目标树 + 甘特时间线 ----------
+function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function parseISO(s){const p=String(s).split('-');return new Date(+p[0],+p[1]-1,+p[2]);}
+function computeRange(goals){
+  const ds=[];const cyc=state.cycles.find(c=>c.id===state.cycleId);
+  if(cyc){cyc.start_date&&ds.push(cyc.start_date);cyc.end_date&&ds.push(cyc.end_date);}
+  goals.forEach(g=>{g.start_date&&ds.push(g.start_date);g.end_date&&ds.push(g.end_date);
+    (g.stages||[]).forEach(s=>{s.start_date&&ds.push(s.start_date);s.end_date&&ds.push(s.end_date);});});
+  const tISO=iso(new Date());ds.push(tISO);ds.sort();
+  const lo=parseISO(ds[0]),hi=parseISO(ds[ds.length-1]);
+  const md=new Date(lo.getFullYear(),lo.getMonth(),1);
+  const xd=new Date(hi.getFullYear(),hi.getMonth()+1,0);
+  const minMs=md.getTime(),maxMs=xd.getTime();
+  const days=Math.max(1,Math.round((maxMs-minMs)/86400000));
+  const width=Math.max(days*9,520);
+  return {minMs,maxMs,days,pxPerDay:width/days,width,tISO};
+}
+function xOf(isoStr,r){const t=parseISO(isoStr).getTime();return Math.max(0,Math.min(r.width,(t-r.minMs)/86400000*r.pxPerDay));}
+function laneGrid(r){
+  let h='';const d=new Date(r.minMs);
+  while(d.getTime()<=r.maxMs){h+=`<div class="gridline" style="left:${xOf(iso(d),r)}px"></div>`;d.setMonth(d.getMonth()+1);}
+  h+=`<div class="today" style="left:${xOf(r.tISO,r)}px"></div>`;return h;
+}
+function monthLabels(r){
+  let h='';const d=new Date(r.minMs),y0=new Date(r.minMs).getFullYear();
+  while(d.getTime()<=r.maxMs){const yl=(d.getMonth()===0||d.getFullYear()!==y0&&d.getTime()===r.minMs)?d.getFullYear()+' ':'';
+    h+=`<div class="gmlabel" style="left:${xOf(iso(d),r)}px">${yl}${d.getMonth()+1}月</div>`;d.setMonth(d.getMonth()+1);}
+  return h;
+}
+function stageSpans(g){
+  const out=[];const hasWin=g.start_date&&g.end_date;
+  let winStart,winDays;
+  if(hasWin){winStart=parseISO(g.start_date);winDays=Math.max(5,Math.round((parseISO(g.end_date)-winStart)/86400000));}
+  (g.stages||[]).slice().sort((a,b)=>a.stage_index-b.stage_index).forEach((st,i)=>{
+    let s=st.start_date,e=st.end_date;
+    if((!s||!e)&&hasWin){const per=winDays/5;
+      s=iso(new Date(winStart.getTime()+Math.round(i*per)*86400000));
+      e=iso(new Date(winStart.getTime()+Math.max(1,Math.round((i+1)*per)-1)*86400000));}
+    if(s&&e)out.push({id:st.id,idx:st.stage_index,name:st.name,status:st.status,s,e});
+  });
+  return out;
+}
+function laneBars(g,r){
+  let h='';
+  if(g.start_date&&g.end_date){const a=xOf(g.start_date,r),b=xOf(g.end_date,r);h+=`<div class="gtrack" style="left:${a}px;width:${Math.max(2,b-a)}px"></div>`;}
+  const segs=stageSpans(g);
+  if(!segs.length)return h+`<div class="noplan">未排期（编辑目标设起止）</div>`;
+  segs.forEach(sg=>{const a=xOf(sg.s,r),b=xOf(sg.e,r),w=Math.max(5,b-a);const cls=sg.status==='running'?'running':sg.status;
+    h+=`<div class="gseg ${cls}" style="left:${a}px;width:${w}px" data-act="editStage" data-id="${sg.id}" data-tip="${esc((sg.idx+1)+'. '+sg.name+' · '+SMAP[sg.status][2]+' · '+sg.s+' ~ '+sg.e)}"></div>`;});
+  return h;
+}
+function visibleGoals(){
+  const out=[];
+  const froots=state.roots.filter(g=>state.healthFilter==='all'||g.health===state.healthFilter);
+  (function walk(list,depth){list.forEach(g=>{out.push({g,depth});if(state.expanded.has(g.id))walk(childrenOf(g.id),depth+1);});})(froots,0);
+  return out;
+}
+function wsRowHtml(g,depth,r){
+  const kids=childrenOf(g.id),canExpand=kids.length>0,collapsed=!state.expanded.has(g.id);
+  const chev=canExpand?`<span class="chev ${collapsed?'col':''}" data-act="toggle" data-id="${g.id}" style="cursor:pointer">▾</span>`:`<span class="chev leaf">▾</span>`;
+  const lv=depth>0?`<span class="lv sub">子</span>`:`<span class="lv">大</span>`;
+  const jira=g.jira_key
+    ? `<a class="pill neutral" href="${esc(g.jira_url||'#')}" target="_blank" onclick="event.stopPropagation()" style="text-decoration:none;font-size:11px;padding:1px 7px">🔗 ${esc(g.jira_key)} ↗</a>`
+    : `<button class="btn sm" data-act="jiraSync" data-id="${g.id}" title="在 Jira 建 issue" style="padding:2px 7px">⤴ Jira</button>`;
+  const left=`<div class="gleft" style="padding-left:${10+depth*18}px">
+    ${chev}
+    <div class="gt" data-act="editGoal" data-id="${g.id}" title="点击编辑目标">
+      <b>${lv} ${esc(g.title)}</b>
+      <div class="gt-meta"><span>👤 ${esc(g.owner)||'—'}</span>${healthPill(g.health)}${jira}</div>
+    </div>
+    <div class="rbtns">
+      <button class="btn sm" data-act="addChild" data-id="${g.id}" title="加子目标">＋</button>
+      <button class="btn sm danger" data-act="delGoal" data-id="${g.id}" title="删除">🗑</button>
+    </div>
+  </div>`;
+  const lane=`<div class="glane" style="width:${r.width}px">${laneGrid(r)}${laneBars(g,r)}</div>`;
+  return `<div class="grow2">${left}${lane}</div>`;
+}
+function renderWorkspace(c){
+  if(!state.lines.length){c.innerHTML=`<div class="empty">还没有业务线。<br/><button class="btn primary" data-act="go" data-id="lines" style="margin-top:12px">去新建业务线</button></div>`;return;}
+  const lineOpts=state.lines.map(l=>`<option value="${l.id}" ${l.id===state.lineId?'selected':''}>${esc(l.name)}</option>`).join('');
+  const chips=[['all','全部'],['on_track','🟢'],['at_risk','🟡'],['off_track','🔴']]
+    .map(([k,l])=>`<button class="chip ${state.healthFilter===k?'active':''}" data-act="filterHealth" data-id="${k}">${l}</button>`).join('');
+  const rows=visibleGoals();
+  const r=computeRange(state.goals);
+  const body=rows.length?rows.map(({g,depth})=>wsRowHtml(g,depth,r)).join('')
+    :`<div class="grow2"><div class="gleft" style="color:var(--muted)">该周期下还没有目标 →</div><div class="glane" style="width:${r.width}px">${laneGrid(r)}</div></div>`;
+  c.innerHTML=`
+    <div class="ws-head">
+      <span class="muted" style="font-size:12px">业务线</span>
+      <select id="wsLine">${lineOpts}</select>
+      <button class="btn primary sm" data-act="newGoal">＋ 新建目标</button>
+      <span style="width:6px"></span><span class="muted" style="font-size:12px">健康</span>${chips}
+      <span style="flex:1"></span>
+      <span class="tag cyc">${esc(cycleName(state.cycleId))}</span>
+    </div>
+    <div class="legend">
+      <span class="lg"><span class="sw" style="background:var(--ok)"></span>已完成</span>
+      <span class="lg"><span class="sw" style="background:var(--warn)"></span>进行中</span>
+      <span class="lg"><span class="sw" style="background:var(--bad)"></span>阻塞</span>
+      <span class="lg"><span class="sw" style="background:#cbd5e1"></span>待开始</span>
+      <span class="lg"><span class="sw today"></span>今天</span>
+      <span class="muted">· 一行 = 一个目标的 5 阶段计划，点条改状态/排期 · 点标题编辑 · 🔗 去 Jira</span>
+    </div>
+    <div class="gantt"><div class="gscroll">
+      <div class="grow2 gaxis"><div class="gleft">目标 / 计划</div><div class="glane" style="width:${r.width}px">${monthLabels(r)}${laneGrid(r)}</div></div>
+      ${body}
+    </div></div>`;
+  const sel=document.getElementById('wsLine');if(sel)sel.onchange=e=>selectLine(e.target.value);
+}
+
+// ================= modals =================
+function openModal(title,bodyHTML,footHTML){
+  document.getElementById('mTitle').textContent=title;
+  document.getElementById('mBody').innerHTML=bodyHTML;
+  document.getElementById('mFoot').innerHTML=footHTML||`<button class="btn" data-act="closeModal">取消</button><button class="btn primary" data-act="modalSave">保存</button>`;
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal(){document.getElementById('modal').classList.remove('open');modalSave.handler=null;}
+function val(id){const e=document.getElementById(id);return e?e.value.trim():'';}
+function segHTML(id,options,current){
+  return `<div class="segmented" id="${id}">`+options.map(o=>`<button type="button" class="seg ${o[0]===current?'active':''}" data-seg="${o[0]}" onclick="pickSeg(this)">${o[2]}</button>`).join('')+`</div>`;
+}
+function pickSeg(el){el.parentNode.querySelectorAll('.seg').forEach(s=>s.classList.remove('active'));el.classList.add('active');}
+function segVal(id){const a=document.querySelector('#'+id+' .seg.active');return a?a.dataset.seg:null;}
+
+// goal create / edit
+function goalForm(goal,parentId){
+  const cycleOpts=state.cycles.map(c=>`<option value="${c.id}" ${((goal?goal.cycle_id:state.cycleId)===c.id)?'selected':''}>${esc(c.name)}</option>`).join('');
+  const parentGoals=state.goals.filter(g=>!goal||g.id!==goal.id);
+  const curParent=goal?goal.parent_id:(parentId?Number(parentId):null);
+  const parentOpts=`<option value="">无（顶层大目标）</option>`+parentGoals.map(g=>`<option value="${g.id}" ${curParent===g.id?'selected':''}>${esc(g.title)}</option>`).join('');
+  const ownerOpts=`<option value="">（未指定）</option>`+state.users.map(u=>`<option value="${u.id}" ${((goal&&goal.owner_user_id)===u.id)?'selected':''}>${esc(u.name)}</option>`).join('');
+  return `
+    <div class="field"><label>目标标题</label><input id="g_title" type="text" value="${goal?esc(goal.title):''}" placeholder="如：把报价 Agent 做成可规模化交付的标品"/></div>
+    <div class="two">
+      <div class="field"><label>负责人</label><select id="g_owner_user">${ownerOpts}</select></div>
+      <div class="field"><label>周期</label><select id="g_cycle">${cycleOpts}</select></div>
+    </div>
+    <div class="field"><label>父目标（决定它在树里的位置）</label><select id="g_parent">${parentOpts}</select></div>
+    <div class="two">
+      <div class="field"><label>开始</label><input id="g_start" type="date" value="${goal&&goal.start_date?goal.start_date:''}"/></div>
+      <div class="field"><label>结束</label><input id="g_end" type="date" value="${goal&&goal.end_date?goal.end_date:''}"/></div>
+    </div>
+    <div class="field"><label>健康度（人工判断）</label>${segHTML('g_health',HEALTHS,goal?goal.health:'on_track')}</div>
+    ${goal?'':`<div class="field"><label>Jira</label><label style="font-weight:400;display:flex;align-items:center;gap:8px;color:var(--ink);cursor:pointer"><input type="checkbox" id="g_sync" checked style="width:auto"/> 建目标后同步到 Jira（在该业务线项目下建 issue）</label></div>`}`;
+}
+function openGoalForm(goal,parentId){
+  openModal(goal?'编辑目标':'新建目标',goalForm(goal,parentId));
+  modalSave.handler=async()=>{
+    const title=val('g_title');if(!title)return toast('标题不能填空',true);
+    const ouid=val('g_owner_user')?Number(val('g_owner_user')):null;
+    const oname=ouid?((state.users.find(u=>u.id===ouid)||{}).name||''):'';
+    const body={title,owner:oname,owner_user_id:ouid,health:segVal('g_health'),
+      cycle_id:Number(val('g_cycle'))||null,parent_id:val('g_parent')?Number(val('g_parent')):null,
+      start_date:val('g_start')||null,end_date:val('g_end')||null};
+    if(goal){await api('/goals/'+goal.id,{method:'PATCH',body});toast('已更新');}
+    else{
+      body.business_line_id=state.lineId;
+      const sync=document.getElementById('g_sync');body.sync_to_jira=sync?sync.checked:false;
+      const res=await api('/goals',{method:'POST',body});
+      if(body.parent_id)state.expanded.add(body.parent_id);  // 建子目标后自动展开父，立刻可见
+      if(res&&res.jira_error)toast('目标已建，但同步 Jira 失败：'+res.jira_error,true);
+      else if(res&&res.jira_key)toast('已创建并同步 Jira：'+res.jira_key);
+      else toast('已创建目标（含 5 阶段）');
+    }
+    await loadGoals();render();closeModal();
+  };
+}
+
+// stage edit
+function openStageForm(stage){
+  openModal(`编辑阶段 · ${stage.stage_index+1}. ${stage.name}`,`
+    <div class="field"><label>状态</label>${segHTML('st_status',STAGE_STATUS,stage.status)}</div>
+    <div class="two">
+      <div class="field"><label>开始</label><input id="st_start" type="date" value="${stage.start_date||''}"/></div>
+      <div class="field"><label>结束</label><input id="st_end" type="date" value="${stage.end_date||''}"/></div>
+    </div>
+    <div class="field"><label>关联 Jira Key（产出：${esc(stage.deliverable)}）</label><input id="st_jira" type="text" value="${esc(stage.jira_key)}" placeholder="QUOTE-1203"/></div>`);
+  modalSave.handler=async()=>{
+    const body={status:segVal('st_status'),start_date:val('st_start')||null,end_date:val('st_end')||null,jira_key:val('st_jira')};
+    await api('/stages/'+stage.id,{method:'PATCH',body});
+    toast('阶段已更新');await loadGoals();render();closeModal();
+  };
+}
+
+// business line add / edit
+function openLineForm(line){
+  openModal(line?'编辑业务线':'新建业务线',`
+    <div class="field"><label>名称</label><input id="l_name" type="text" value="${line?esc(line.name):''}" placeholder="保险报价 Agent"/></div>
+    <div class="field"><label>负责人</label><input id="l_owner" type="text" value="${line?esc(line.owner):''}" placeholder="李明"/></div>
+    <div class="field"><label>描述</label><input id="l_desc" type="text" value="${line?esc(line.description):''}" placeholder="车险 / 财险智能报价"/></div>
+    <div class="field"><label>默认 Jira 项目 Key</label><input id="l_jira" type="text" value="${line?esc(line.jira_project_key):''}" placeholder="QUOTE"/></div>`);
+  modalSave.handler=async()=>{
+    const name=val('l_name');if(!name)return toast('名称不能空',true);
+    const body={name,owner:val('l_owner'),description:val('l_desc'),jira_project_key:val('l_jira')};
+    if(line)await api('/business-lines/'+line.id,{method:'PATCH',body});
+    else await api('/business-lines',{method:'POST',body});
+    toast('已保存');await loadGlobal();render();closeModal();
+  };
+}
+
+// cycle add / edit
+function openCycleForm(cy){
+  openModal(cy?'编辑周期':'新建周期',`
+    <div class="field"><label>名称</label><input id="c_name" type="text" value="${cy?esc(cy.name):''}" placeholder="2026 Q4"/></div>
+    <div class="two">
+      <div class="field"><label>开始</label><input id="c_start" type="date" value="${cy&&cy.start_date?cy.start_date:''}"/></div>
+      <div class="field"><label>结束</label><input id="c_end" type="date" value="${cy&&cy.end_date?cy.end_date:''}"/></div>
+    </div>
+    <div class="field"><label>状态</label>${segHTML('c_status',[['active','run','进行中'],['archived','neutral','已归档']],cy?cy.status:'active')}</div>`);
+  modalSave.handler=async()=>{
+    const name=val('c_name');if(!name)return toast('名称不能空',true);
+    const body={name,start_date:val('c_start')||null,end_date:val('c_end')||null,status:segVal('c_status')};
+    if(cy)await api('/cycles/'+cy.id,{method:'PATCH',body});
+    else await api('/cycles',{method:'POST',body});
+    toast('已保存');await loadGlobal();
+    if(state.view==='workspace')await loadGoals();
+    render();closeModal();
+  };
+}
+
+// ================= action dispatch =================
+const modalSave={handler:null};
+const actions={
+  closeModal, go:v=>go(v), selectLine:id=>selectLine(id),
+  modalSave:async()=>{try{if(modalSave.handler)await modalSave.handler();}catch(e){toast(e.message,true);}},
+  editLine:id=>openLineForm(state.lines.find(l=>l.id===Number(id))),
+  newLine:()=>openLineForm(null),
+  delLine:async id=>{if(!confirm('删除该业务线？（其下若还有目标会被拦截）'))return;try{await api('/business-lines/'+id,{method:'DELETE'});toast('已删除');await loadGlobal();render();}catch(e){toast(e.message,true);}},
+  newCycle:()=>openCycleForm(null),
+  editCycle:id=>openCycleForm(state.cycles.find(c=>c.id===Number(id))),
+  delCycle:async id=>{if(!confirm('删除该周期？（其下若还有目标会被拦截）'))return;try{await api('/cycles/'+id,{method:'DELETE'});toast('已删除');if(state.cycleId===Number(id))state.cycleId=null;await loadGlobal();if(state.view==='workspace')await loadGoals();render();}catch(e){toast(e.message,true);}},
+  filterHealth:id=>{state.healthFilter=id;render();},
+  toggle:id=>{const n=Number(id);if(state.expanded.has(n))state.expanded.delete(n);else state.expanded.add(n);render();},
+  newGoal:()=>openGoalForm(null,null),
+  addChild:id=>openGoalForm(null,id),
+  editGoal:id=>openGoalForm(state.byId[Number(id)],null),
+  delGoal:async id=>{const g=state.byId[Number(id)];const kids=childrenOf(Number(id));
+    if(!confirm(`删除「${g.title}」？`+(kids.length?`\n注意：它有 ${kids.length} 个子目标，会一并删除。`:'')))return;
+    try{await api('/goals/'+id,{method:'DELETE'});toast('已删除');await loadGoals();render();}catch(e){toast(e.message,true);}},
+  editStage:id=>{const sid=Number(id);let st=null;for(const g of state.goals){const f=(g.stages||[]).find(s=>s.id===sid);if(f){st=f;break;}}if(st)openStageForm(st);},
+  // Jira 关联
+  jiraSync:async id=>{try{await api('/goals/'+id+'/jira/sync',{method:'POST'});toast('已同步到 Jira');await loadGoals();render();}catch(e){toast(e.message,true);}},
+  jiraLink:id=>{openModal('关联已有 Jira issue',`<div class="field"><label>Jira issue key</label><input id="jl_key" type="text" placeholder="QUOTE-1203"/></div><div class="hint" style="font-size:12px;color:var(--muted)">会用当前用户的凭据校验该 issue 是否存在。</div>`);
+    modalSave.handler=async()=>{const k=val('jl_key');if(!k)return toast('填一个 key',true);await api('/goals/'+id+'/jira/link',{method:'POST',body:{key:k}});toast('已关联 '+k);await loadGoals();render();closeModal();};},
+  jiraUnlink:async id=>{if(!confirm('解除与 Jira 的关联？（只清平台侧，不动 Jira 里的 issue）'))return;try{await api('/goals/'+id+'/jira/link',{method:'DELETE'});toast('已解除');await loadGoals();render();}catch(e){toast(e.message,true);}},
+  // 用户 / 集成 / 登录
+  delUser:async id=>{if(!confirm('删除该用户？其负责的目标会被置为「未指定」。'))return;try{await api('/users/'+id,{method:'DELETE'});toast('已删除');await loadGlobal();render();}catch(e){toast(e.message,true);}},
+  saveOAuth:async()=>{try{const body={client_id:val('oa_id'),auth_base:val('oa_auth'),api_base:val('oa_api'),redirect_uri:val('oa_redir')};const sec=val('oa_secret');if(sec)body.client_secret=sec;await api('/settings/oauth',{method:'PUT',body});toast('已保存 OAuth 配置');await loadGlobal();render();}catch(e){toast(e.message,true);}},
+  logout:async()=>{try{await api('/auth/logout',{method:'POST'});}catch(e){}location.href='/';},
+  toggleGateCfg:async()=>{const box=document.getElementById('gateCfg');if(!box.style.display||box.style.display==='none'){let cfg={};try{cfg=await api('/settings/oauth');}catch(e){}box.innerHTML=oauthFormHTML(cfg,'gate');box.style.display='block';}else{box.style.display='none';}},
+  saveGateCfg:async()=>{try{const body={client_id:val('gate_id'),auth_base:val('gate_auth'),api_base:val('gate_api'),redirect_uri:val('gate_redir')};const sec=val('gate_secret');if(sec)body.client_secret=sec;await api('/settings/oauth',{method:'PUT',body});const st=await api('/auth/status');document.getElementById('gateWarn').style.display=st.configured?'none':'block';toast('已保存，现在可以登录了');}catch(e){toast(e.message,true);}},
+};
+
+function oauthFormHTML(cfg,prefix){
+  return `
+    <div class="field"><label>client_id</label><input id="${prefix}_id" type="text" value="${esc(cfg.client_id||'')}"/></div>
+    <div class="field"><label>client_secret（留空=不改；已配：${cfg.has_secret?'是':'否'}）</label><input id="${prefix}_secret" type="text" placeholder="填了才更新"/></div>
+    <div class="two">
+      <div class="field"><label>auth_base（真：https://auth.atlassian.com）</label><input id="${prefix}_auth" type="text" value="${esc(cfg.auth_base||'')}"/></div>
+      <div class="field"><label>api_base（真：https://api.atlassian.com）</label><input id="${prefix}_api" type="text" value="${esc(cfg.api_base||'')}"/></div>
+    </div>
+    <div class="field"><label>redirect_uri</label><input id="${prefix}_redir" type="text" value="${esc(cfg.redirect_uri||'')}"/></div>
+    <button class="btn primary sm" data-act="${prefix==='gate'?'saveGateCfg':'saveOAuth'}">保存配置</button>`;
+}
+document.body.addEventListener('click',e=>{
+  const el=e.target.closest('[data-act]');if(!el)return;
+  const fn=actions[el.dataset.act];if(fn){e.preventDefault();fn(el.dataset.id,el,e);}
+});
+// 甘特条悬浮提示（阶段名 · 状态 · 起止）
+let _gtip;
+document.body.addEventListener('mousemove',e=>{
+  _gtip=_gtip||document.getElementById('gtip');
+  const seg=e.target.closest&&e.target.closest('.gseg[data-tip]');
+  if(seg){_gtip.textContent=seg.dataset.tip;_gtip.style.display='block';
+    _gtip.style.left=(e.clientX+14)+'px';_gtip.style.top=(e.clientY+16)+'px';}
+  else if(_gtip.style.display==='block'){_gtip.style.display='none';}
+});
+document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
+
+// ================= login gate + boot =================
+function showGate(configured){
+  document.querySelector('.app').style.display='none';
+  document.getElementById('gate').style.display='flex';
+  document.getElementById('gateWarn').style.display=configured?'none':'block';
+}
+function hideGate(){document.getElementById('gate').style.display='none';document.querySelector('.app').style.display='flex';}
+async function boot(){
+  let st;
+  try{st=await api('/auth/status');}
+  catch(e){document.body.innerHTML='<div style="padding:40px;font-family:sans-serif">后端未启动？ '+esc(e.message)+'</div>';return;}
+  if(!st.logged_in){showGate(st.configured);return;}
+  state.me=st.user;hideGate();
+  try{await loadGlobal();if(state.view==='workspace')await loadGoals();render();}
+  catch(e){document.getElementById('content').innerHTML=`<div class="empty">加载失败：${esc(e.message)}</div>`;}
+}
+boot();
+</script>
+</body>
+</html>
