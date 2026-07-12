@@ -68,10 +68,11 @@ def init_db() -> None:
 
 def _seed(s: Session) -> None:
     """从原型的示例数据播种一份可玩的初始库。"""
-    # 用户（各自将来绑自己的 Jira 身份；此处不带 token）
-    names = ["李明", "陈磊", "王芳", "张伟", "周琳", "吴涛"]
-    for n in names:
-        s.add(User(name=n, jira_email=""))
+    # 用户：身份将来由「用 Jira 登录」按 email 接上（本地 mock 用同样的 email 登录）
+    seed_users = [("李明", "liming"), ("陈磊", "chenlei"), ("王芳", "wangfang"),
+                  ("张伟", "zhangwei"), ("周琳", "zhoulin"), ("吴涛", "wutao")]
+    for n, local in seed_users:
+        s.add(User(name=n, email=f"{local}@goalplatform.local"))
     s.commit()
     user_id = {u.name: u.id for u in s.exec(select(User)).all()}
 

@@ -1,8 +1,8 @@
-"""Jira Cloud REST API v3 客户端（真实接口）。
+"""Jira Cloud REST API v3 客户端（OAuth Bearer）。
 
-鉴权：HTTP Basic = email:api_token（Jira Cloud 标准做法）。
-描述字段用 ADF（Atlassian Document Format）—— v3 要求，不能传纯字符串。
-切换真/mock 只需改 base_url。
+OAuth 3LO 下，Jira API 走 https://api.atlassian.com/ex/jira/{cloudid}/rest/api/3/...
+鉴权用 Authorization: Bearer {access_token}。
+描述字段用 ADF（v3 要求）。切换真/mock 只改 base_url（见 jira_config）。
 """
 from __future__ import annotations
 
@@ -15,13 +15,13 @@ TIMEOUT = 15.0
 
 @dataclass
 class JiraAuth:
-    base_url: str          # 如 https://yoursite.atlassian.net  或  http://127.0.0.1:8099(mock)
-    email: str
-    token: str
+    base_url: str          # 形如 https://api.atlassian.com/ex/jira/{cloudid}  或  mock 的等价地址
+    token: str             # OAuth access token
+    site_url: str = ""     # 站点浏览地址（拼 /browse/KEY 用），如 https://xxx.atlassian.net
 
     @property
     def ok(self) -> bool:
-        return bool(self.base_url and self.email and self.token)
+        return bool(self.base_url and self.token)
 
 
 class JiraError(Exception):
@@ -32,7 +32,6 @@ class JiraError(Exception):
 
 
 def _adf(text: str) -> dict:
-    """把纯文本包成最小 ADF 文档。"""
     return {
         "type": "doc",
         "version": 1,
@@ -45,8 +44,11 @@ def _adf(text: str) -> dict:
 def _client(auth: JiraAuth) -> httpx.Client:
     return httpx.Client(
         base_url=auth.base_url.rstrip("/"),
-        auth=(auth.email, auth.token),
-        headers={"Accept": "application/json", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {auth.token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        },
         timeout=TIMEOUT,
     )
 
@@ -65,15 +67,8 @@ def _raise(resp: httpx.Response) -> None:
 
 
 def _issue_url(auth: JiraAuth, key: str) -> str:
-    return f"{auth.base_url.rstrip('/')}/browse/{key}"
-
-
-def myself(auth: JiraAuth) -> dict:
-    """GET /myself —— 用于「测试连接」并取 accountId。"""
-    with _client(auth) as c:
-        r = c.get("/rest/api/3/myself")
-        _raise(r)
-        return r.json()
+    base = (auth.site_url or auth.base_url).rstrip("/")
+    return f"{base}/browse/{key}"
 
 
 def create_issue(
@@ -109,7 +104,6 @@ def get_issue(auth: JiraAuth, key: str) -> dict:
 
 
 def add_link(auth: JiraAuth, inward_key: str, outward_key: str, link_type: str = "Relates") -> None:
-    """在两个 issue 间建关联（弱表达目标父子）。Relates 是内置类型，必存在。"""
     body = {
         "type": {"name": link_type},
         "inwardIssue": {"key": inward_key},

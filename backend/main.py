@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from db import init_db
-from routers import business_lines, cycles, goals, settings, users
+from routers import auth, business_lines, cycles, goals, settings, users
 
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
@@ -37,6 +37,7 @@ app.add_middleware(
 )
 
 # 先挂 API 路由（更具体，优先匹配）
+app.include_router(auth.router)
 app.include_router(business_lines.router)
 app.include_router(cycles.router)
 app.include_router(goals.router)

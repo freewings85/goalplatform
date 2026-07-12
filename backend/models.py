@@ -67,14 +67,20 @@ class Cycle(SQLModel, table=True):
 
 
 class User(SQLModel, table=True):
-    """平台用户：每人绑各自的 Jira 身份。Token 加密存，只写不读。"""
+    """平台用户 = 一个 Atlassian/Jira 账号（用 OAuth 登录得到，不存密码）。
+
+    首次用 Jira 登录时按 atlassian_account_id 建/认用户；令牌 Fernet 加密存、只写不读。
+    """
     __tablename__ = "user"
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     email: str = ""
-    jira_email: str = ""                        # 该用户在 Jira 的登录邮箱
-    jira_account_id: str = ""                   # Jira accountId（测连接时回填，用于指派）
-    jira_token_enc: str = ""                    # Fernet 密文；空 = 未配置
+    atlassian_account_id: str = Field(default="", index=True)  # Jira 账号唯一标识
+    oauth_cloud_id: str = ""                    # 该用户可访问的 Jira 站点 cloudid
+    oauth_site_url: str = ""                    # 站点浏览地址（拼 /browse/KEY）
+    oauth_access_enc: str = ""                  # 加密的 access token
+    oauth_access_expires: Optional[datetime] = None
+    oauth_refresh_enc: str = ""                 # 加密的 refresh token（用于续期）
     is_active: bool = True
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

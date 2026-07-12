@@ -20,21 +20,19 @@ router = APIRouter(prefix="/api", tags=["goals"])
 def _sync_goal_to_jira(session: Session, goal: Goal, user: User | None) -> str | None:
     """把目标同步成一个 Jira issue。成功回填 goal.jira_*；失败返回错误文案（不抛）。"""
     auth = auth_for_user(session, user)
-    if not auth.base_url:
-        return "尚未配置 Jira 站点（去「用户 / 集成」设置里填）"
     if not auth.ok:
-        return "当前用户还没配 Jira 邮箱 / Token"
+        return "当前用户未用 Jira 账号登录（或授权已失效），无法同步"
     bl = session.get(BusinessLine, goal.business_line_id)
     project_key = bl.jira_project_key if bl else ""
     if not project_key:
         return "该业务线没设默认 Jira 项目 Key"
 
-    # 指派给目标负责人（若其是已知用户且测过连接拿到 accountId）
+    # 指派给目标负责人（若其已用 Jira 登录、有 accountId）
     assignee = None
     if goal.owner_user_id:
         ow = session.get(User, goal.owner_user_id)
-        if ow and ow.jira_account_id:
-            assignee = ow.jira_account_id
+        if ow and ow.atlassian_account_id:
+            assignee = ow.atlassian_account_id
 
     try:
         issue = create_issue(auth, project_key, goal.title, f"GoalPlatform 目标 · 负责人 {goal.owner or '—'}", assignee_account_id=assignee)
@@ -253,7 +251,7 @@ def jira_link(goal_id: int, payload: JiraLinkIn, session: Session = Depends(get_
     key = payload.key.strip()
     if not key:
         raise HTTPException(400, "请填 Jira issue key")
-    if auth.ok and auth.base_url:
+    if auth.ok:
         try:
             issue = get_issue(auth, key)
             g.jira_key, g.jira_id, g.jira_url = issue["key"], issue["id"], issue["url"]
@@ -262,9 +260,9 @@ def jira_link(goal_id: int, payload: JiraLinkIn, session: Session = Depends(get_
         except Exception as e:
             raise HTTPException(502, f"校验 Jira issue 失败：{e}")
     else:
-        # 未配置凭据时也允许弱关联（只存 key，url 按站点拼；无站点则留空）
+        # 未登录时也允许弱关联（只存 key，url 按站点拼；无站点则留空）
         g.jira_key = key
-        g.jira_url = f"{auth.base_url.rstrip('/')}/browse/{key}" if auth.base_url else ""
+        g.jira_url = f"{auth.site_url.rstrip('/')}/browse/{key}" if auth.site_url else ""
     session.add(g)
     session.commit()
     session.refresh(g)

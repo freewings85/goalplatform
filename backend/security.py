@@ -33,3 +33,24 @@ def encrypt(plain: str) -> str:
 
 def decrypt(token: str) -> str:
     return _fernet.decrypt(token.encode()).decode()
+
+
+# ---- 会话 cookie（登录态；不是密码，是 OAuth 登录结果的签名） ----
+SESSION_TTL_SECONDS = 7 * 24 * 3600
+
+
+def make_session_token(user_id: int) -> str:
+    from datetime import datetime, timedelta
+    exp = (datetime.utcnow() + timedelta(seconds=SESSION_TTL_SECONDS)).timestamp()
+    return encrypt(f"{user_id}|{exp}")
+
+
+def read_session_token(token: str) -> int | None:
+    from datetime import datetime
+    try:
+        uid, exp = decrypt(token).split("|", 1)
+        if float(exp) < datetime.utcnow().timestamp():
+            return None
+        return int(uid)
+    except Exception:
+        return None

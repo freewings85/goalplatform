@@ -94,3 +94,17 @@
 
 - 换真 Jira:改 `jira_base_url`,各用户填真 email+token,`myself` 测通即可。
 - 登录硬化(密码/SSO)、issue 状态双向同步(webhook)、按目标层级选 Epic/Story 类型、Advanced Roadmaps 多层级——都属后续。
+
+---
+
+## 附录：改为「用 Jira 账号登录」(OAuth 3LO) — 2026-07-12 追加
+
+用户反馈：不想手动建用户/贴 API Token，希望系统打开就有「登录 Jira」链接，登录后即用其 Jira 账号，并顺带解决系统内 Jira 跳转的认证。据此把上文的「手动账户 + API Token」替换为 **Atlassian OAuth 2.0 (3LO)**：
+
+- **登录门**：未登录时前端整屏挡住，只给「用 Atlassian 账号登录」。点击 → `GET /api/auth/login`（带 state 签名 cookie）→ 跳 `{auth_base}/authorize` → 用户授权 → `GET /api/auth/callback` 校验 state、换 token、取身份(`/me`)与站点(`accessible-resources`)、按 accountId/email upsert 用户、下发签名会话 cookie → 回 `/`。
+- **不存密码**：会话是 Fernet 签名的 cookie（`security.make_session_token`）。用户由登录自动创建/认领（种子用户按 email 接上）。
+- **令牌**：access/refresh token 加密存 user 行；`oauth.valid_access_token` 过期自动用 refresh 续期。Jira 调用改 Bearer，base 走 `{api_base}/ex/jira/{cloudid}`。
+- **跳转认证**：登录时用户在浏览器认证过 Atlassian，故同浏览器点 `/browse/KEY` 一般免再登；但那是浏览器自身的 Jira 会话，跨浏览器/无痕仍可能要登（超链接无法注入认证）——已如实说明。
+- **本地验证**：`jira_mock.py` 增加 `/authorize`(假授权页)、`/oauth/token`、`/me`、`/oauth/token/accessible-resources`，并把 Jira 数据接口挂到 `/ex/jira/{cloud}/rest/api/3/...`(Bearer)。默认配置指向 mock，开箱即可验证整套登录流程。
+- **切真**：一次性在 developer.atlassian.com 注册 OAuth app 拿 client_id/secret，设置里改 auth_base/api_base 为真 Atlassian 域，代码不动。（注册需人工验邮箱，无法自动完成——本次仅用 mock 验证。）
+- **被替换**：手动 `POST/PATCH /users`、`/users/{id}/jira-token`、`/users/{id}/jira/test`、全局 `jira_base_url` 设置、顶栏用户切换器 —— 均移除。

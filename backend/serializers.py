@@ -7,14 +7,15 @@ from models import Goal, KeyResult, Stage, User
 
 
 def user_dict(u: User) -> dict:
-    """绝不返回 token；只回是否已配置。"""
+    """绝不返回任何令牌；只回是否已用 Jira 登录过。"""
     return {
         "id": u.id,
         "name": u.name,
         "email": u.email,
-        "jira_email": u.jira_email,
-        "jira_account_id": u.jira_account_id,
-        "has_jira_token": bool(u.jira_token_enc),
+        "account_id": u.atlassian_account_id,
+        "linked": bool(u.oauth_refresh_enc or u.oauth_access_enc),
+        "cloud_id": u.oauth_cloud_id,
+        "site_url": u.oauth_site_url,
         "is_active": u.is_active,
     }
 
