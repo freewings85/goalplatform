@@ -559,9 +559,13 @@ function segVal(id){const a=document.querySelector('#'+id+' .seg.active');return
 function stageEditorHTML(goal){
   const stages=goal?goal.stages.slice().sort((a,b)=>a.stage_index-b.stage_index)
     :FIXED_STAGES.map((s,i)=>({stage_index:i,name:s[0],deliverable:s[1],status:'todo',start_date:'',end_date:''}));
+  const jurl=goal&&goal.jira_url?goal.jira_url:'';
+  const deliv=name=>jurl
+    ?`产出物：<a href="${esc(jurl)}" target="_blank" style="color:var(--primary)" title="去该目标的 Jira issue 上传/查看">${esc(name)} ↗</a>`
+    :`产出物：${esc(name)}`;
   const rows=stages.map((s,i)=>`
     <div class="secard">
-      <div class="se-head"><b>${i+1}. ${esc(s.name)}</b><span class="muted" style="font-size:11.5px">产出物：${esc(s.deliverable)}</span></div>
+      <div class="se-head"><b>${i+1}. ${esc(s.name)}</b><span class="muted" style="font-size:11.5px">${deliv(s.deliverable)}</span></div>
       <div class="two" style="margin-top:6px">
         <div class="field" style="margin-bottom:6px"><label>开始</label><input id="s${i}_start" type="date" value="${s.start_date||''}"/></div>
         <div class="field" style="margin-bottom:6px"><label>结束</label><input id="s${i}_end" type="date" value="${s.end_date||''}"/></div>
@@ -569,7 +573,7 @@ function stageEditorHTML(goal){
       ${segHTML('s'+i+'_status',STAGE_STATUS,s.status||'todo')}
     </div>`).join('');
   return `<div class="section-title" style="margin:16px 0 8px"><h3 style="font-size:14px">交付 5 阶段（名称固定，可排期 / 改状态 / 传产出物）</h3></div>
-    <div id="attBox" class="note" style="margin:0 0 10px;font-size:12px">📎 产出物上传在该目标的 Jira issue 上。</div>
+    <div id="attBox" class="note" style="margin:0 0 10px;font-size:12px">${jurl?`📎 产出物点上面「产出物」链接即跳到该目标的 Jira issue 上传。`:`📎 建目标并同步到 Jira 后，产出物即可跳转到对应 issue 上传。`}</div>
     ${rows}`;
 }
 function goalForm(goal,parentId){
@@ -633,13 +637,18 @@ function openGoalForm(goal,parentId){
 
 // stage edit
 function openStageForm(stage){
+  const goal=state.goals.find(g=>(g.stages||[]).some(s=>s.id===stage.id));
+  const jurl=goal&&goal.jira_url?goal.jira_url:'';
+  const deliv=jurl
+    ?`产出物：<a href="${esc(jurl)}" target="_blank" style="color:var(--primary)">${esc(stage.deliverable)} ↗</a>（在 Jira 上传/查看）`
+    :`产出物：${esc(stage.deliverable)}（同步到 Jira 后可上传）`;
   openModal(`阶段 · ${stage.stage_index+1}. ${stage.name}`,`
     <div class="field"><label>状态</label>${segHTML('st_status',STAGE_STATUS,stage.status)}</div>
     <div class="two">
       <div class="field"><label>开始</label><input id="st_start" type="date" value="${stage.start_date||''}"/></div>
       <div class="field"><label>结束</label><input id="st_end" type="date" value="${stage.end_date||''}"/></div>
     </div>
-    <div class="muted" style="font-size:12px">产出物：${esc(stage.deliverable)}（在该目标的 Jira issue 上传）</div>`);
+    <div class="muted" style="font-size:12px">${deliv}</div>`);
   modalSave.handler=async()=>{
     const body={status:segVal('st_status'),start_date:val('st_start')||null,end_date:val('st_end')||null};
     await api('/stages/'+stage.id,{method:'PATCH',body});
