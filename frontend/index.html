@@ -43,6 +43,7 @@
   .cyclepick select{width:auto;padding:7px 10px}
   .avatar{width:32px;height:32px;border-radius:50%;background:#4f46e5;color:#fff;display:grid;place-items:center;font-size:13px;font-weight:600}
   .content{padding:22px 26px;max-width:1180px;width:100%}
+  .content.wide{max-width:none}
   h2.page{font-size:20px;margin:0 0 2px}
   .sub{color:var(--muted);margin:0 0 18px}
   /* cards */
@@ -167,14 +168,19 @@
   .glane{position:relative;flex:1;min-width:360px}
   .gaxis{position:sticky;top:0;z-index:4;background:#fbfcfe}
   .gaxis .gleft{background:#fbfcfe;font-weight:600;font-size:12px;color:var(--muted)}
-  .gaxis .glane{height:32px}
-  .gridline{position:absolute;top:0;bottom:0;width:1px;background:#eef2f7;z-index:0}
-  .gmlabel{position:absolute;top:9px;font-size:11px;color:var(--muted);white-space:nowrap;padding-left:5px}
-  .today{position:absolute;top:0;bottom:0;width:2px;background:var(--primary);opacity:.55;z-index:1}
-  .gtrack{position:absolute;height:6px;top:calc(50% - 3px);border-radius:3px;background:#eef2f7;z-index:0}
-  .gseg{position:absolute;height:15px;top:calc(50% - 7.5px);border-radius:4px;z-index:1;cursor:pointer;box-shadow:0 0 0 2px #fff}
+  .gaxis .glane{height:42px}
+  .wknd{position:absolute;top:0;bottom:0;background:#eef2f7;z-index:0}       /* 周末浅底 */
+  .gridline{position:absolute;top:0;bottom:0;width:1px;background:#e9edf3;z-index:0}   /* 周一细线 */
+  .mgrid{position:absolute;top:0;bottom:0;width:1px;background:#d4dce6;z-index:0}      /* 月初分隔 */
+  .gmlabel{position:absolute;top:3px;font-size:11.5px;font-weight:600;color:var(--ink);white-space:nowrap;padding-left:5px}
+  .wklabel{position:absolute;top:23px;font-size:9.5px;color:var(--muted);white-space:nowrap;padding-left:2px}
+  .today{position:absolute;top:0;bottom:0;width:2px;background:var(--primary);opacity:.6;z-index:1}
+  .todayflag{position:absolute;top:2px;transform:translateX(-50%);background:var(--primary);color:#fff;font-size:9.5px;font-weight:600;padding:1px 5px;border-radius:5px;z-index:3;white-space:nowrap}
+  .gtrack{position:absolute;height:6px;top:calc(50% - 3px);border-radius:3px;background:#e2e8f0;z-index:1}
+  .gseg{position:absolute;height:15px;top:calc(50% - 7.5px);border-radius:4px;z-index:2;cursor:pointer;box-shadow:0 0 0 2px #fff}
   .gseg:hover{filter:brightness(1.06);outline:2px solid rgba(79,70,229,.5)}
-  .gseg.done{background:var(--ok)} .gseg.running{background:var(--warn)} .gseg.blocked{background:var(--bad)} .gseg.todo{background:#cbd5e1}
+  .gseg.done{background:var(--ok)} .gseg.running{background:var(--warn)} .gseg.todo{background:#cbd5e1}
+  .gseg.overdue{box-shadow:0 0 0 2px #fff,0 0 0 3.5px var(--bad)}   /* 逾期未完成：红框提醒 */
   .gtip{position:fixed;z-index:70;background:var(--ink);color:#fff;font-size:12px;padding:6px 9px;border-radius:7px;pointer-events:none;white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.3);display:none}
   .noplan{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:11.5px;color:#cbd5e1}
   /* 目标弹窗里的 5 阶段编辑卡 */
@@ -330,6 +336,7 @@ function crumb(txt){document.getElementById('crumb').innerHTML=txt;}
 function render(){
   const c=document.getElementById('content');
   setNavActive();
+  c.classList.toggle('wide',state.view==='workspace');   // 工作台用满宽，甘特一屏铺 3 个月
   if(state.view==='workspace'){crumb('业务线 <span>/ '+esc(state.line?state.line.name:'')+' · 目标计划</span>');return renderWorkspace(c);}
   if(state.view==='lines'){crumb('业务线');return renderLines(c);}
   if(state.view==='cycles'){crumb('周期');return renderCycles(c);}
@@ -407,7 +414,7 @@ function renderSettings(c){
 function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function parseISO(s){const p=String(s).split('-');return new Date(+p[0],+p[1]-1,+p[2]);}
 function addDays(isoStr,n){const d=parseISO(isoStr);d.setDate(d.getDate()+n);return iso(d);}
-function computeRange(goals){
+function computeRange(goals,avail){
   const ds=[];const cyc=state.cycles.find(c=>c.id===state.cycleId);
   if(cyc){cyc.start_date&&ds.push(cyc.start_date);cyc.end_date&&ds.push(cyc.end_date);}
   goals.forEach(g=>{g.start_date&&ds.push(g.start_date);g.end_date&&ds.push(g.end_date);
@@ -417,20 +424,34 @@ function computeRange(goals){
   const md=new Date(lo.getFullYear(),lo.getMonth(),1);
   const xd=new Date(hi.getFullYear(),hi.getMonth()+1,0);
   const minMs=md.getTime(),maxMs=xd.getTime();
-  const days=Math.max(1,Math.round((maxMs-minMs)/86400000));
-  const width=Math.max(days*9,520);
-  return {minMs,maxMs,days,pxPerDay:width/days,width,tISO};
+  const days=Math.max(1,Math.round((maxMs-minMs)/86400000)+1);   // 含首尾，按天
+  // 适配宽度：整段尽量铺满可见区，一屏看全（~90 天也不横向滚动）；每天 6~20px
+  let pxPerDay=Math.max(6,Math.min(20,(avail||900)/days));
+  const width=Math.round(days*pxPerDay);
+  return {minMs,maxMs,days,pxPerDay,width,tISO};
 }
 function xOf(isoStr,r){const t=parseISO(isoStr).getTime();return Math.max(0,Math.min(r.width,(t-r.minMs)/86400000*r.pxPerDay));}
-function laneGrid(r){
-  let h='';const d=new Date(r.minMs);
-  while(d.getTime()<=r.maxMs){h+=`<div class="gridline" style="left:${xOf(iso(d),r)}px"></div>`;d.setMonth(d.getMonth()+1);}
+// 每行背景：周末浅底 + 周一细线 + 月初分隔 + 今天线（读到天）
+function laneCal(r){
+  let h='';let cur=new Date(r.minMs);
+  while(cur.getTime()<=r.maxMs){
+    const wd=cur.getDay();
+    if(wd===0||wd===6){const x=xOf(iso(cur),r);h+=`<div class="wknd" style="left:${x}px;width:${Math.min(r.width,x+r.pxPerDay)-x}px"></div>`;}
+    if(wd===1&&cur.getTime()>r.minMs)h+=`<div class="gridline" style="left:${xOf(iso(cur),r)}px"></div>`;
+    cur.setDate(cur.getDate()+1);
+  }
+  let m=new Date(new Date(r.minMs).getFullYear(),new Date(r.minMs).getMonth()+1,1);
+  while(m.getTime()<=r.maxMs){h+=`<div class="mgrid" style="left:${xOf(iso(m),r)}px"></div>`;m.setMonth(m.getMonth()+1);}
   h+=`<div class="today" style="left:${xOf(r.tISO,r)}px"></div>`;return h;
 }
-function monthLabels(r){
-  let h='';const d=new Date(r.minMs),y0=new Date(r.minMs).getFullYear();
-  while(d.getTime()<=r.maxMs){const yl=(d.getMonth()===0||d.getFullYear()!==y0&&d.getTime()===r.minMs)?d.getFullYear()+' ':'';
-    h+=`<div class="gmlabel" style="left:${xOf(iso(d),r)}px">${yl}${d.getMonth()+1}月</div>`;d.setMonth(d.getMonth()+1);}
+// 顶部日历轴：月份名（上） + 每周一的日期 M/D（下） + 今天旗标
+function calAxis(r){
+  let h='';let md=new Date(new Date(r.minMs).getFullYear(),new Date(r.minMs).getMonth(),1);
+  while(md.getTime()<=r.maxMs){const yl=md.getMonth()===0?md.getFullYear()+' ':'';
+    h+=`<div class="gmlabel" style="left:${Math.max(0,xOf(iso(md),r))}px">${yl}${md.getMonth()+1}月</div>`;md.setMonth(md.getMonth()+1);}
+  let wd=new Date(r.minMs);
+  while(wd.getTime()<=r.maxMs){if(wd.getDay()===1)h+=`<div class="wklabel" style="left:${xOf(iso(wd),r)}px">${wd.getMonth()+1}/${wd.getDate()}</div>`;wd.setDate(wd.getDate()+1);}
+  h+=`<div class="todayflag" style="left:${xOf(r.tISO,r)}px">今天 ${new Date().getMonth()+1}/${new Date().getDate()}</div>`;
   return h;
 }
 function stageSpans(g){
@@ -452,7 +473,8 @@ function laneBars(g,r){
   const segs=stageSpans(g);
   if(!segs.length)return h+`<div class="noplan">未排期（编辑目标设起止）</div>`;
   segs.forEach(sg=>{const a=xOf(sg.s,r),b=xOf(sg.e,r),w=Math.max(5,b-a);const cls=sg.status==='running'?'running':sg.status;
-    h+=`<div class="gseg ${cls}" style="left:${a}px;width:${w}px" data-act="editStage" data-id="${sg.id}" data-s="${sg.s}" data-e="${sg.e}" data-tip="${esc((sg.idx+1)+'. '+sg.name+' · '+SMAP[sg.status][2]+' · '+sg.s+' ~ '+sg.e)}"></div>`;});
+    const od=sg.e<r.tISO&&sg.status!=='done';   // 截止已过且未完成 → 逾期提醒
+    h+=`<div class="gseg ${cls}${od?' overdue':''}" style="left:${a}px;width:${w}px" data-act="editStage" data-id="${sg.id}" data-s="${sg.s}" data-e="${sg.e}" data-tip="${esc((sg.idx+1)+'. '+sg.name+' · '+SMAP[sg.status][2]+' · '+sg.s+' ~ '+sg.e+(od?' · ⚠ 逾期未完成':''))}"></div>`;});
   return h;
 }
 function visibleGoals(){
@@ -478,7 +500,7 @@ function wsRowHtml(g,depth,r){
       <button class="btn sm danger" data-act="delGoal" data-id="${g.id}" title="删除">🗑</button>
     </div>
   </div>`;
-  const lane=`<div class="glane" style="width:${r.width}px">${laneGrid(r)}${laneBars(g,r)}</div>`;
+  const lane=`<div class="glane" style="width:${r.width}px">${laneCal(r)}${laneBars(g,r)}</div>`;
   return `<div class="grow2">${left}${lane}</div>`;
 }
 function renderWorkspace(c){
@@ -486,9 +508,10 @@ function renderWorkspace(c){
   const anyExpandable=state.goals.some(g=>childrenOf(g.id).length);
   const allExpanded=anyExpandable&&state.goals.filter(g=>childrenOf(g.id).length).every(g=>state.expanded.has(g.id));
   const rows=visibleGoals();
-  const r=computeRange(state.goals);state.gr=r;
+  const cw=(document.getElementById('content')||{}).clientWidth||1000;
+  const r=computeRange(state.goals,Math.max(560,cw-386));state.gr=r;   // 386≈内边距+左树列，整段铺满可见区
   const body=rows.length?rows.map(({g,depth})=>wsRowHtml(g,depth,r)).join('')
-    :`<div class="grow2"><div class="gleft" style="color:var(--muted)">该周期下还没有目标 →</div><div class="glane" style="width:${r.width}px">${laneGrid(r)}</div></div>`;
+    :`<div class="grow2"><div class="gleft" style="color:var(--muted)">该周期下还没有目标 →</div><div class="glane" style="width:${r.width}px">${laneCal(r)}</div></div>`;
   c.innerHTML=`
     <div class="ws-head">
       <button class="btn sm" data-act="go" data-id="lines">← 业务线</button>
@@ -504,11 +527,13 @@ function renderWorkspace(c){
       <span class="lg"><span class="sw" style="background:var(--ok)"></span>已完成</span>
       <span class="lg"><span class="sw" style="background:var(--warn)"></span>进行中</span>
       <span class="lg"><span class="sw" style="background:#cbd5e1"></span>未开始</span>
+      <span class="lg"><span class="sw" style="box-shadow:0 0 0 2px var(--bad) inset;background:#fff"></span>逾期未完成</span>
+      <span class="lg"><span class="sw" style="background:#eef2f7"></span>周末</span>
       <span class="lg"><span class="sw today"></span>今天</span>
-      <span class="muted">· 一行 = 一个目标的 5 阶段计划；拖动阶段条改期、拖两端改起止 · 点标题编辑目标与阶段 · 🔗 去 Jira</span>
+      <span class="muted">· 按天铺满 3 个月；拖阶段条改期 · 点标题编辑</span>
     </div>
     <div class="gantt"><div class="gscroll">
-      <div class="grow2 gaxis"><div class="gleft">目标 / 计划</div><div class="glane" style="width:${r.width}px">${monthLabels(r)}${laneGrid(r)}</div></div>
+      <div class="grow2 gaxis"><div class="gleft">目标 / 计划</div><div class="glane" style="width:${r.width}px">${laneCal(r)}${calAxis(r)}</div></div>
       ${body}
     </div></div>`;
   const sel=document.getElementById('wsCycle');
