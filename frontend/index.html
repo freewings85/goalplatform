@@ -410,6 +410,7 @@ function renderSettings(c){
 // ---------- 工作台：目标树 + 甘特时间线 ----------
 function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function parseISO(s){const p=String(s).split('-');return new Date(+p[0],+p[1]-1,+p[2]);}
+function addDays(isoStr,n){const d=parseISO(isoStr);d.setDate(d.getDate()+n);return iso(d);}
 function computeRange(goals){
   const ds=[];const cyc=state.cycles.find(c=>c.id===state.cycleId);
   if(cyc){cyc.start_date&&ds.push(cyc.start_date);cyc.end_date&&ds.push(cyc.end_date);}
@@ -455,7 +456,7 @@ function laneBars(g,r){
   const segs=stageSpans(g);
   if(!segs.length)return h+`<div class="noplan">未排期（编辑目标设起止）</div>`;
   segs.forEach(sg=>{const a=xOf(sg.s,r),b=xOf(sg.e,r),w=Math.max(5,b-a);const cls=sg.status==='running'?'running':sg.status;
-    h+=`<div class="gseg ${cls}" style="left:${a}px;width:${w}px" data-act="editStage" data-id="${sg.id}" data-tip="${esc((sg.idx+1)+'. '+sg.name+' · '+SMAP[sg.status][2]+' · '+sg.s+' ~ '+sg.e)}"></div>`;});
+    h+=`<div class="gseg ${cls}" style="left:${a}px;width:${w}px" data-act="editStage" data-id="${sg.id}" data-s="${sg.s}" data-e="${sg.e}" data-tip="${esc((sg.idx+1)+'. '+sg.name+' · '+SMAP[sg.status][2]+' · '+sg.s+' ~ '+sg.e)}"></div>`;});
   return h;
 }
 function visibleGoals(){
@@ -491,7 +492,7 @@ function renderWorkspace(c){
   const chips=[['all','全部']].concat(HEALTHS.map(h=>[h[0],h[2]]))
     .map(([k,l])=>`<button class="chip ${state.healthFilter===k?'active':''}" data-act="filterHealth" data-id="${k}">${l}</button>`).join('');
   const rows=visibleGoals();
-  const r=computeRange(state.goals);
+  const r=computeRange(state.goals);state.gr=r;
   const body=rows.length?rows.map(({g,depth})=>wsRowHtml(g,depth,r)).join('')
     :`<div class="grow2"><div class="gleft" style="color:var(--muted)">该周期下还没有目标 →</div><div class="glane" style="width:${r.width}px">${laneGrid(r)}</div></div>`;
   c.innerHTML=`
@@ -509,7 +510,7 @@ function renderWorkspace(c){
       <span class="lg"><span class="sw" style="background:var(--bad)"></span>阻塞</span>
       <span class="lg"><span class="sw" style="background:#cbd5e1"></span>待开始</span>
       <span class="lg"><span class="sw today"></span>今天</span>
-      <span class="muted">· 一行 = 一个目标的 5 阶段计划，点条改状态/排期 · 点标题编辑 · 🔗 去 Jira</span>
+      <span class="muted">· 一行 = 一个目标的 5 阶段计划；拖动阶段条改期、拖两端改起止、点条改状态 · 点标题编辑 · 🔗 去 Jira</span>
     </div>
     <div class="gantt"><div class="gscroll">
       <div class="grow2 gaxis"><div class="gleft">目标 / 计划</div><div class="glane" style="width:${r.width}px">${monthLabels(r)}${laneGrid(r)}</div></div>
@@ -674,17 +675,50 @@ function oauthFormHTML(cfg,prefix){
     <button class="btn primary sm" data-act="${prefix==='gate'?'saveGateCfg':'saveOAuth'}">保存配置</button>`;
 }
 document.body.addEventListener('click',e=>{
+  if(gSuppressClick){gSuppressClick=false;e.preventDefault();e.stopPropagation();return;} // 刚拖动过，吞掉这次 click
   const el=e.target.closest('[data-act]');if(!el)return;
   const fn=actions[el.dataset.act];if(fn){e.preventDefault();fn(el.dataset.id,el,e);}
 });
-// 甘特条悬浮提示（阶段名 · 状态 · 起止）
-let _gtip;
+// ===== 甘特：悬浮提示 + 拖动改期 / 拖两端改起止 =====
+let _gtip,gdrag=null,gSuppressClick=false;
+function gtipShow(text,x,y){_gtip=_gtip||document.getElementById('gtip');_gtip.textContent=text;_gtip.style.display='block';_gtip.style.left=(x+14)+'px';_gtip.style.top=(y+16)+'px';}
+function gtipHide(){_gtip=_gtip||document.getElementById('gtip');if(_gtip.style.display==='block')_gtip.style.display='none';}
+function segEdge(seg,clientX){const rc=seg.getBoundingClientRect();const zone=Math.min(9,rc.width*0.28);const off=clientX-rc.left;if(off<=zone)return 'l';if(off>=rc.width-zone)return 'r';return 'move';}
+function findStage(id){for(const g of state.goals){const f=(g.stages||[]).find(x=>x.id===id);if(f)return f;}return null;}
+document.body.addEventListener('mousedown',e=>{
+  gSuppressClick=false; // 新交互开始：清掉上次「拖远了没触发 click」遗留的抑制标志
+  const seg=e.target.closest&&e.target.closest('.gseg[data-s]');
+  if(!seg||!state.gr)return;
+  e.preventDefault(); // 防止拖动时选中文字
+  gdrag={id:Number(seg.dataset.id),mode:segEdge(seg,e.clientX),startX:e.clientX,
+    s0:seg.dataset.s,e0:seg.dataset.e,el:seg,moved:false,ns:seg.dataset.s,ne:seg.dataset.e};
+});
 document.body.addEventListener('mousemove',e=>{
-  _gtip=_gtip||document.getElementById('gtip');
+  if(gdrag){
+    const r=state.gr,dd=Math.round((e.clientX-gdrag.startX)/r.pxPerDay);
+    if(dd!==0)gdrag.moved=true;
+    let s=gdrag.s0,en=gdrag.e0;
+    if(gdrag.mode==='move'){s=addDays(gdrag.s0,dd);en=addDays(gdrag.e0,dd);}
+    else if(gdrag.mode==='l'){s=addDays(gdrag.s0,dd);if(s>gdrag.e0)s=gdrag.e0;}
+    else{en=addDays(gdrag.e0,dd);if(en<gdrag.s0)en=gdrag.s0;}
+    gdrag.ns=s;gdrag.ne=en;
+    const a=xOf(s,r),b=xOf(en,r);gdrag.el.style.left=a+'px';gdrag.el.style.width=Math.max(5,b-a)+'px';
+    gtipShow((gdrag.mode==='move'?'移动到 ':'调整为 ')+s+' ~ '+en,e.clientX,e.clientY);
+    return;
+  }
   const seg=e.target.closest&&e.target.closest('.gseg[data-tip]');
-  if(seg){_gtip.textContent=seg.dataset.tip;_gtip.style.display='block';
-    _gtip.style.left=(e.clientX+14)+'px';_gtip.style.top=(e.clientY+16)+'px';}
-  else if(_gtip.style.display==='block'){_gtip.style.display='none';}
+  if(seg){seg.style.cursor=segEdge(seg,e.clientX)==='move'?'grab':'ew-resize';gtipShow(seg.dataset.tip,e.clientX,e.clientY);}
+  else gtipHide();
+});
+document.body.addEventListener('mouseup',async()=>{
+  if(!gdrag)return;
+  const d=gdrag;gdrag=null;gtipHide();
+  if(!d.moved||(d.ns===d.s0&&d.ne===d.e0))return; // 没动 = 点击 → 交给 click 打开编辑
+  gSuppressClick=true; // 拖过：抑制随后的 click，避免弹出编辑框
+  const st=findStage(d.id);if(st){st.start_date=d.ns;st.end_date=d.ne;} // 本地先改，立即反馈
+  render();
+  try{await api('/stages/'+d.id,{method:'PATCH',body:{start_date:d.ns,end_date:d.ne}});toast('已调整排期 '+d.ns+' ~ '+d.ne);}
+  catch(err){toast('保存失败：'+err.message,true);await loadGoals();render();}
 });
 document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
 
