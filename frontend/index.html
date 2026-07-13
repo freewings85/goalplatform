@@ -195,6 +195,7 @@
   .se-tilde{color:var(--muted);font-size:11px}
   .secard .se-status{margin-top:8px}
   .secard .se-status .segmented{margin-top:0}
+  .secard .se-appr{margin-top:9px}
   /* 阶段备注（业务需求确定 / 方案确定）：标题下、起止时间上 */
   .se-note{margin-top:9px}
   .se-note-lb{font-size:12px;color:var(--muted);font-weight:600}
@@ -641,6 +642,12 @@ function stageEditorHTML(goal){
     const noteAndDates=hasNote?`
       <div class="se-note se-note-lb">备注 · <span class="se-note-hint">${esc(STAGE_NOTE[i])}</span></div>
       <div class="se-daterow"><span class="se-dr-lb">起止时间</span>${datesHTML}</div>`:'';
+    // 审批：仅编辑已存在目标时才有阶段 id 可审批（新建时阶段还没生成）
+    const apprBlock=(goal&&s.id)?`
+      <div class="se-appr">
+        <div class="se-deliv-lb" style="margin-bottom:6px">审批</div>
+        <div id="aprSlot_${s.id}">${approvalBlockHTML(s)}</div>
+      </div>`:'';
     return `
     <div class="secard">
       <div class="se-head">
@@ -649,6 +656,7 @@ function stageEditorHTML(goal){
       </div>
       ${noteAndDates}
       <div class="se-status">${segHTML('s'+i+'_status',STAGE_STATUS,s.status||'todo')}</div>
+      ${apprBlock}
       <div class="se-deliv">
         <div class="se-deliv-top"><span class="se-deliv-lb">产出物（名称 + 链接）</span><button type="button" class="btn sm" onclick="addDeliv('deliv${i}')">＋ 添加</button></div>
         <div id="deliv${i}" class="dl-list">${dlRows}</div>
@@ -728,17 +736,18 @@ function approvalBlockHTML(stage){
   }
   return `<div class="apr-box">
     <div class="apr-head"><span class="apr-badge off">○ 未审批</span></div>
-    ${mgr?`<textarea id="apr_comment" placeholder="审批意见（可选）" style="min-height:46px;margin-top:8px"></textarea>
+    ${mgr?`<textarea id="apr_comment_${stage.id}" placeholder="审批意见（可选）" style="min-height:46px;margin-top:8px"></textarea>
        <button type="button" class="btn primary sm" style="margin-top:8px" onclick="doApprove(${stage.id},true)">审批通过</button>`
       :`<div class="muted" style="font-size:12px;margin-top:6px">待管理用户审批。普通用户只能查看。</div>`}
   </div>`;
 }
 async function doApprove(stageId,approve){
   try{
-    const comment=approve?(val('apr_comment')||''):'';
+    const c=document.getElementById('apr_comment_'+stageId);
+    const comment=approve?((c&&c.value.trim())||''):'';
     const st=await api('/stages/'+stageId+'/approval',{method:'POST',body:{approve,comment}});
     toast(approve?'已审批通过':'已撤销审批');
-    const slot=document.getElementById('aprSlot');
+    const slot=document.getElementById('aprSlot_'+stageId);
     if(slot&&st)slot.innerHTML=approvalBlockHTML(st);
     await loadGoals();render();   // 刷新甘特上的审批 ✓ 标
   }catch(e){toast(e.message||'操作失败',true);}
@@ -750,7 +759,7 @@ function openStageForm(stage){
     <div class="field"><div class="se-note-lb">备注 · <span class="se-note-hint">${esc(STAGE_NOTE[stage.stage_index])}</span></div></div>`:'';
   openModal(`阶段 · ${stage.stage_index+1}. ${stage.name}`,`
     <div class="field"><label>标准状态</label>${segHTML('st_status',STAGE_STATUS,stage.status)}</div>
-    <div class="field"><label>审批状态</label><div id="aprSlot">${approvalBlockHTML(stage)}</div></div>
+    <div class="field"><label>审批状态</label><div id="aprSlot_${stage.id}">${approvalBlockHTML(stage)}</div></div>
     ${noteBlock}
     <div class="two">
       <div class="field"><label>开始</label><input id="st_start" type="date" value="${stage.start_date||''}" onchange="syncEndDefault('st_start','st_end')"/></div>
