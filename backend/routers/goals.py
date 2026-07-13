@@ -136,6 +136,8 @@ def create_goal(payload: GoalIn, session: Session = Depends(get_session), user: 
             stages[i].end_date = s.end_date
         if s.jira_key is not None:
             stages[i].jira_key = s.jira_key
+        if s.note is not None:
+            stages[i].note = s.note
         if s.deliverables is not None:
             stages[i].deliverables = _dump_deliverables(s.deliverables)
     session.add_all(stages)

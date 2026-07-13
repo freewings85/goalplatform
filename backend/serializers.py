@@ -51,6 +51,7 @@ def stage_dict(st: Stage, session: Session | None = None) -> dict:
         "start_date": st.start_date,
         "end_date": st.end_date,
         "jira_key": st.jira_key,
+        "note": st.note,
         "deliverables": _parse_deliverables(st.deliverables),
         "approval_status": st.approval_status,
         "approval": {

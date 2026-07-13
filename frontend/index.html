@@ -195,6 +195,12 @@
   .se-tilde{color:var(--muted);font-size:11px}
   .secard .se-status{margin-top:8px}
   .secard .se-status .segmented{margin-top:0}
+  /* 阶段备注（业务需求确定 / 方案确定）：标题下、起止时间上 */
+  .se-note{margin-top:9px}
+  .se-note-lb{font-size:12px;color:var(--muted);font-weight:600}
+  .se-note-hint{font-weight:400;color:#94a3b8}
+  .se-daterow{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .se-dr-lb{font-size:12px;color:var(--muted);font-weight:600}
   /* 产出物：可编辑的 名称+链接 多条列表 */
   .se-deliv{margin-top:9px}
   .se-deliv-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
@@ -613,6 +619,11 @@ function addDeliv(boxId){const box=document.getElementById(boxId);if(box)box.ins
 function collectDeliv(boxId){const box=document.getElementById(boxId);if(!box)return[];
   return [...box.querySelectorAll('.dl-row')].map(r=>({name:r.querySelector('.dl-name').value.trim(),url:r.querySelector('.dl-url').value.trim()})).filter(d=>d.name||d.url);}
 
+// 阶段备注的方法论提示（仅 业务需求确定[0] / 方案确定[1] 两阶段有）
+const STAGE_NOTE=[
+  '方法论：理解做什么 → 我计划这么做对吗 → 达成一致',
+  '方法论：讲清楚为了做成目标，技术上计划怎么做',
+];
 // goal create / edit
 function stageEditorHTML(goal){
   const stages=goal?goal.stages.slice().sort((a,b)=>a.stage_index-b.stage_index)
@@ -620,16 +631,23 @@ function stageEditorHTML(goal){
   const rows=stages.map((s,i)=>{
     const dl=s.deliverables||[];
     const dlRows=dl.map(d=>delivRowHTML(d.name,d.url)).join('');
+    const hasNote=!!STAGE_NOTE[i];
+    const datesHTML=`<span class="se-dates">
+          <input id="s${i}_start" type="date" value="${s.start_date||''}" onchange="syncEndDefault('s${i}_start','s${i}_end')"/>
+          <span class="se-tilde">~</span>
+          <input id="s${i}_end" type="date" value="${s.end_date||''}" onchange="stageChainStart(${i})"/>
+        </span>`;
+    // 业务需求确定 / 方案确定：标题下先写一条备注（只是方法论提示，不需要输入框），再是起止时间
+    const noteAndDates=hasNote?`
+      <div class="se-note se-note-lb">备注 · <span class="se-note-hint">${esc(STAGE_NOTE[i])}</span></div>
+      <div class="se-daterow"><span class="se-dr-lb">起止时间</span>${datesHTML}</div>`:'';
     return `
     <div class="secard">
       <div class="se-head">
         <b>${i+1}. ${esc(s.name)}</b>
-        <span class="se-dates">
-          <input id="s${i}_start" type="date" value="${s.start_date||''}" onchange="syncEndDefault('s${i}_start','s${i}_end')"/>
-          <span class="se-tilde">~</span>
-          <input id="s${i}_end" type="date" value="${s.end_date||''}" onchange="stageChainStart(${i})"/>
-        </span>
+        ${hasNote?'':datesHTML}
       </div>
+      ${noteAndDates}
       <div class="se-status">${segHTML('s'+i+'_status',STAGE_STATUS,s.status||'todo')}</div>
       <div class="se-deliv">
         <div class="se-deliv-top"><span class="se-deliv-lb">产出物（名称 + 链接）</span><button type="button" class="btn sm" onclick="addDeliv('deliv${i}')">＋ 添加</button></div>
@@ -728,9 +746,12 @@ async function doApprove(stageId,approve){
 function openStageForm(stage){
   const dl=stage.deliverables||[];
   const dlRows=dl.map(d=>delivRowHTML(d.name,d.url)).join('');
+  const noteBlock=STAGE_NOTE[stage.stage_index]?`
+    <div class="field"><div class="se-note-lb">备注 · <span class="se-note-hint">${esc(STAGE_NOTE[stage.stage_index])}</span></div></div>`:'';
   openModal(`阶段 · ${stage.stage_index+1}. ${stage.name}`,`
     <div class="field"><label>标准状态</label>${segHTML('st_status',STAGE_STATUS,stage.status)}</div>
     <div class="field"><label>审批状态</label><div id="aprSlot">${approvalBlockHTML(stage)}</div></div>
+    ${noteBlock}
     <div class="two">
       <div class="field"><label>开始</label><input id="st_start" type="date" value="${stage.start_date||''}" onchange="syncEndDefault('st_start','st_end')"/></div>
       <div class="field"><label>结束</label><input id="st_end" type="date" value="${stage.end_date||''}"/></div>

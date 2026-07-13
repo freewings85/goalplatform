@@ -136,6 +136,7 @@ class Stage(SQLModel, table=True):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     jira_key: str = ""
+    note: str = ""                               # 备注（业务需求确定 / 方案确定阶段用，带方法论提示）
     deliverables: str = ""                       # 产出物列表（JSON：[{name,url}]，用户手填的名称+链接）
     # 审批状态（独立于标准状态；只有管理用户能改。撤销即清空下面三项记录）
     approval_status: ApprovalStatus = ApprovalStatus.pending

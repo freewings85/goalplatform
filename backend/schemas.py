@@ -63,6 +63,7 @@ class StageIn(SQLModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     jira_key: Optional[str] = None
+    note: Optional[str] = None
     deliverables: Optional[list[DeliverableIn]] = None
 
 
@@ -71,6 +72,7 @@ class StageUpdate(SQLModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     jira_key: Optional[str] = None
+    note: Optional[str] = None
     deliverables: Optional[list[DeliverableIn]] = None
 
 

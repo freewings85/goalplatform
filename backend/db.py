@@ -76,6 +76,8 @@ def _migrate() -> None:
         stage_cols = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(stage)").fetchall()]
         if "deliverables" not in stage_cols:
             conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN deliverables TEXT DEFAULT ''")
+        if "note" not in stage_cols:
+            conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN note TEXT DEFAULT ''")
         # 阶段审批（独立于标准状态）
         if "approval_status" not in stage_cols:
             conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN approval_status VARCHAR DEFAULT 'pending'")
