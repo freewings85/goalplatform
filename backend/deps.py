@@ -7,10 +7,11 @@ from fastapi import Cookie, Depends, HTTPException
 from sqlmodel import Session
 
 from db import get_session
-from models import User
-from security import read_session_token
+from models import User, UserRole
+from security import read_admin_token, read_session_token
 
 SESSION_COOKIE = "gp_session"
+ADMIN_COOKIE = "gp_admin"
 
 
 def current_user(
@@ -29,3 +30,19 @@ def require_user(user: Optional[User] = Depends(current_user)) -> User:
     if not user:
         raise HTTPException(401, "未登录")
     return user
+
+
+def require_manager(user: Optional[User] = Depends(current_user)) -> User:
+    """需要「管理用户」角色（审批相关操作）。"""
+    if not user:
+        raise HTTPException(401, "未登录")
+    if user.role != UserRole.manager:
+        raise HTTPException(403, "需要管理用户权限")
+    return user
+
+
+def require_admin(gp_admin: Optional[str] = Cookie(default=None)) -> bool:
+    """需要管理控制台（/management）的 admin 登录态，与主应用登录无关。"""
+    if not gp_admin or not read_admin_token(gp_admin):
+        raise HTTPException(401, "管理员未登录")
+    return True

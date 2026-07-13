@@ -31,12 +31,17 @@ def user_dict(u: User) -> dict:
         "name": u.name,
         "email": u.email,
         "jira_username": u.jira_username,
+        "role": u.role,
         "linked": bool(u.jira_username and u.jira_password_enc),
         "is_active": u.is_active,
     }
 
 
-def stage_dict(st: Stage) -> dict:
+def stage_dict(st: Stage, session: Session | None = None) -> dict:
+    approver = ""
+    if st.approved_by_id and session is not None:
+        u = session.get(User, st.approved_by_id)
+        approver = u.name if u else ""
     return {
         "id": st.id,
         "stage_index": st.stage_index,
@@ -47,6 +52,13 @@ def stage_dict(st: Stage) -> dict:
         "end_date": st.end_date,
         "jira_key": st.jira_key,
         "deliverables": _parse_deliverables(st.deliverables),
+        "approval_status": st.approval_status,
+        "approval": {
+            "approver": approver,
+            "approver_id": st.approved_by_id,
+            "approved_at": st.approved_at,
+            "comment": st.approve_comment,
+        } if st.approval_status == "approved" else None,
     }
 
 
@@ -86,7 +98,7 @@ def goal_dict(goal: Goal, session: Session, *, with_children: bool = False) -> d
         "jira_url": goal.jira_url,
         "child_ids": list(child_ids),
         "krs": [kr_dict(k) for k in krs],
-        "stages": [stage_dict(s) for s in stages],
+        "stages": [stage_dict(s, session) for s in stages],
     }
     if with_children:
         children = session.exec(

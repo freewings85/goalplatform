@@ -25,6 +25,16 @@ class StageStatus(str, Enum):
     done = "done"           # 已完成 🟢
 
 
+class UserRole(str, Enum):
+    normal = "normal"       # 普通用户：只能看审批状态
+    manager = "manager"     # 管理用户：可审批 / 撤销审批
+
+
+class ApprovalStatus(str, Enum):
+    pending = "pending"     # 未审批
+    approved = "approved"   # 审批通过
+
+
 # ---- 固定 5 阶段交付流水线：每个目标（大/小通用）都走同一条 ----
 # (阶段名, 产出物)
 FIXED_STAGES: list[tuple[str, str]] = [
@@ -72,6 +82,7 @@ class User(SQLModel, table=True):
     email: str = ""
     jira_username: str = Field(default="", index=True)  # Jira 登录名 / key，如 chenzifei（也是 assignee 用的 name）
     jira_password_enc: str = ""                 # Fernet 加密的 Jira 密码（只写不读）
+    role: UserRole = UserRole.normal            # 普通 / 管理（管理才可审批）
     is_active: bool = True
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -121,8 +132,13 @@ class Stage(SQLModel, table=True):
     stage_index: int                            # 0..4
     name: str
     deliverable: str = ""
-    status: StageStatus = StageStatus.todo      # 人工更新
+    status: StageStatus = StageStatus.todo      # 标准状态：人工更新
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     jira_key: str = ""
     deliverables: str = ""                       # 产出物列表（JSON：[{name,url}]，用户手填的名称+链接）
+    # 审批状态（独立于标准状态；只有管理用户能改。撤销即清空下面三项记录）
+    approval_status: ApprovalStatus = ApprovalStatus.pending
+    approved_by_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    approved_at: Optional[datetime] = None
+    approve_comment: str = ""                    # 审批意见

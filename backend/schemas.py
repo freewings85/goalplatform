@@ -6,7 +6,7 @@ from typing import Optional
 
 from sqlmodel import SQLModel
 
-from models import CycleStatus, StageStatus
+from models import CycleStatus, StageStatus, UserRole
 
 
 # ---- 业务线 ----
@@ -104,6 +104,35 @@ class GoalUpdate(SQLModel):
 class LoginIn(SQLModel):
     username: str
     password: str
+
+
+# ---- 阶段审批（仅管理用户可调） ----
+class StageApprovalIn(SQLModel):
+    approve: bool                       # True=审批通过；False=撤销（清空记录）
+    comment: str = ""                   # 审批意见
+
+
+# ---- 管理控制台（独立 admin 账号） ----
+class AdminLoginIn(SQLModel):
+    password: str
+
+
+class AdminPasswordIn(SQLModel):
+    old_password: str
+    new_password: str
+
+
+class AdminUserIn(SQLModel):
+    name: str                           # 显示名
+    jira_username: str                  # Jira 登录名（白名单键）
+    role: UserRole = UserRole.normal
+
+
+class AdminUserUpdate(SQLModel):
+    name: Optional[str] = None
+    jira_username: Optional[str] = None
+    role: Optional[UserRole] = None
+    is_active: Optional[bool] = None
 
 
 # ---- 设置 / Jira 关联 ----

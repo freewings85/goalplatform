@@ -12,10 +12,11 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from db import init_db
-from routers import auth, business_lines, cycles, goals, settings, users
+from routers import admin, auth, business_lines, cycles, goals, settings, users
 
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
@@ -38,6 +39,7 @@ app.add_middleware(
 
 # 先挂 API 路由（更具体，优先匹配）
 app.include_router(auth.router)
+app.include_router(admin.router)
 app.include_router(business_lines.router)
 app.include_router(cycles.router)
 app.include_router(goals.router)
@@ -48,6 +50,12 @@ app.include_router(settings.router)
 @app.get("/api/health")
 def health():
     return {"ok": True}
+
+
+# 管理控制台是独立页面（与主 SPA 分开），显式路由到 management.html
+@app.get("/management")
+def management_page():
+    return FileResponse(str(FRONTEND_DIR / "management.html"))
 
 
 # 再挂静态前端（html=True → "/" 返回 index.html）；放最后，避免盖住 /api

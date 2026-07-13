@@ -53,18 +53,19 @@ def login(payload: LoginIn, response: Response, session: Session = Depends(get_s
         raise HTTPException(502, f"连接 Jira 失败：{e}")
 
     jira_name = ident["name"] or username
-    # upsert：先按 jira_username，再按 email 认已播种用户，否则新建
+    # 白名单：只有管理员在「用户管理」中添加过的账号才能登录（先按 jira_username，再按 email 认领）
     user = session.exec(select(User).where(User.jira_username == jira_name)).first()
     if not user and ident.get("email"):
         user = session.exec(select(User).where(User.email == ident["email"])).first()
     if not user:
-        user = User(name=ident.get("displayName") or jira_name)
-        session.add(user)
+        raise HTTPException(403, "未授权：请联系管理员在用户管理中添加你的账号")
+    if not user.is_active:
+        raise HTTPException(403, "账号已停用：请联系管理员")
+    # 认领 / 更新资料并存加密凭据（角色由管理员维护，登录不改）
     user.name = ident.get("displayName") or user.name or jira_name
     user.email = ident.get("email") or user.email
     user.jira_username = jira_name
     user.jira_password_enc = encrypt(payload.password)
-    user.is_active = True
     session.add(user)
     session.commit()
     session.refresh(user)

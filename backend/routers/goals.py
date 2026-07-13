@@ -7,12 +7,14 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
+from datetime import datetime
+
 from db import get_session, make_stages
-from deps import current_user
+from deps import current_user, require_manager
 from jira_client import JiraError, add_link, assign_issue, create_issue, get_attachments, get_issue
 from jira_config import LINK_TYPE, auth_for_user, jira_issue_type
-from models import BusinessLine, Goal, KeyResult, Stage, User
-from schemas import GoalIn, GoalUpdate, JiraLinkIn, KRIn, KRUpdate, StageUpdate
+from models import ApprovalStatus, BusinessLine, Goal, KeyResult, Stage, User
+from schemas import GoalIn, GoalUpdate, JiraLinkIn, KRIn, KRUpdate, StageApprovalIn, StageUpdate
 from serializers import goal_dict, kr_dict, stage_dict
 
 router = APIRouter(prefix="/api", tags=["goals"])
@@ -248,7 +250,34 @@ def update_stage(stage_id: int, payload: StageUpdate, session: Session = Depends
     session.add(st)
     session.commit()
     session.refresh(st)
-    return stage_dict(st)
+    return stage_dict(st, session)
+
+
+@router.post("/stages/{stage_id}/approval")
+def stage_approval(
+    stage_id: int,
+    payload: StageApprovalIn,
+    session: Session = Depends(get_session),
+    manager: User = Depends(require_manager),
+):
+    """审批 / 撤销阶段——仅「管理用户」。撤销即清空审批人/时间/意见。"""
+    st = session.get(Stage, stage_id)
+    if not st:
+        raise HTTPException(404, "阶段不存在")
+    if payload.approve:
+        st.approval_status = ApprovalStatus.approved
+        st.approved_by_id = manager.id
+        st.approved_at = datetime.utcnow()
+        st.approve_comment = (payload.comment or "").strip()
+    else:
+        st.approval_status = ApprovalStatus.pending
+        st.approved_by_id = None
+        st.approved_at = None
+        st.approve_comment = ""
+    session.add(st)
+    session.commit()
+    session.refresh(st)
+    return stage_dict(st, session)
 
 
 # ============ 目标 ↔ Jira ============

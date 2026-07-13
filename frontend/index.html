@@ -182,6 +182,7 @@
   .gseg:hover{filter:brightness(1.06);outline:2px solid rgba(79,70,229,.5)}
   .gseg.done{background:var(--ok)} .gseg.running{background:var(--warn)} .gseg.todo{background:#cbd5e1}
   .gseg.overdue{box-shadow:0 0 0 2px #fff,0 0 0 3.5px var(--bad)}   /* 逾期未完成：红框提醒 */
+  .gcheck{position:absolute;top:calc(50% - 8px);width:15px;height:15px;border-radius:50%;background:var(--ok);color:#fff;font-size:10px;font-weight:800;display:grid;place-items:center;z-index:3;box-shadow:0 0 0 2px #fff;pointer-events:none}  /* 审批通过：绿勾 */
   .gtip{position:fixed;z-index:70;background:var(--ink);color:#fff;font-size:12px;padding:6px 9px;border-radius:7px;pointer-events:none;white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.3);display:none}
   .noplan{position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:11.5px;color:#cbd5e1}
   /* 目标弹窗里的 5 阶段编辑卡 */
@@ -206,6 +207,14 @@
   .dl-open.off{color:#cbd5e1;pointer-events:none}
   .dl-del{flex:0 0 auto;width:26px;height:26px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--muted);cursor:pointer;font-size:12px;line-height:1}
   .dl-del:hover{color:var(--bad);border-color:#f6c9c9}
+  /* 阶段审批区 */
+  .apr-box{border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:#fbfcfe}
+  .apr-box.approved{background:var(--ok-weak);border-color:#bbe6cd}
+  .apr-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .apr-badge{font-size:13px;font-weight:700}
+  .apr-badge.on{color:var(--ok)} .apr-badge.off{color:var(--muted)}
+  .apr-rec{margin-top:9px;font-size:12.5px;display:flex;flex-direction:column;gap:3px;border-top:1px dashed #bbe6cd;padding-top:8px}
+  .apr-rec .muted{display:inline-block;width:42px}
   [hidden]{display:none!important}
 </style>
 </head>
@@ -223,6 +232,7 @@
     <button class="btn primary" data-act="doLogin" style="width:100%;justify-content:center;font-size:14px;padding:11px">🔓 登录 Jira</button>
     <div id="gateWarn" class="note" style="margin-top:14px;display:none">⚠ 尚未配置 Jira 站点地址。</div>
     <div class="muted" style="font-size:11.5px;margin-top:12px;text-align:center">站点：<span id="gateSite">—</span></div>
+    <div style="font-size:11.5px;margin-top:8px;text-align:center"><a href="/management" style="color:var(--muted)">管理控制台（用户管理）↗</a></div>
   </div>
 </div>
 
@@ -482,7 +492,7 @@ function stageSpans(g){
     if((!s||!e)&&hasWin){const per=winDays/5;
       s=iso(new Date(winStart.getTime()+Math.round(i*per)*86400000));
       e=iso(new Date(winStart.getTime()+Math.max(1,Math.round((i+1)*per)-1)*86400000));}
-    if(s&&e)out.push({id:st.id,idx:st.stage_index,name:st.name,status:st.status,s,e});
+    if(s&&e)out.push({id:st.id,idx:st.stage_index,name:st.name,status:st.status,appr:st.approval_status,s,e});
   });
   return out;
 }
@@ -493,7 +503,10 @@ function laneBars(g,r){
   if(!segs.length)return h+`<div class="noplan">未排期（编辑目标设起止）</div>`;
   segs.forEach(sg=>{const a=xOf(sg.s,r),b=xOf(sg.e,r),w=Math.max(5,b-a);const cls=sg.status==='running'?'running':sg.status;
     const od=sg.e<r.tISO&&sg.status!=='done';   // 截止已过且未完成 → 逾期提醒
-    h+=`<div class="gseg ${cls}${od?' overdue':''}" style="left:${a}px;width:${w}px" data-act="editStage" data-id="${sg.id}" data-s="${sg.s}" data-e="${sg.e}" data-tip="${esc((sg.idx+1)+'. '+sg.name+' · '+SMAP[sg.status][2]+' · '+sg.s+' ~ '+sg.e+(od?' · ⚠ 逾期未完成':''))}"></div>`;});
+    const appr=sg.appr==='approved';
+    const tip=(sg.idx+1)+'. '+sg.name+' · '+SMAP[sg.status][2]+' · '+(appr?'✓ 审批通过':'○ 未审批')+' · '+sg.s+' ~ '+sg.e+(od?' · ⚠ 逾期未完成':'');
+    h+=`<div class="gseg ${cls}${od?' overdue':''}" style="left:${a}px;width:${w}px" data-act="editStage" data-id="${sg.id}" data-s="${sg.s}" data-e="${sg.e}" data-tip="${esc(tip)}"></div>`;
+    if(appr)h+=`<div class="gcheck" style="left:${b-7}px" title="审批通过">✓</div>`;});
   return h;
 }
 function visibleGoals(){
@@ -676,11 +689,48 @@ function openGoalForm(goal,parentId){
 }
 
 // stage edit
+function isManager(){return !!(state.me&&state.me.role==='manager');}
+function fmtDT(s){if(!s)return '—';const d=new Date(/[zZ+]/.test(s)?s:s+'Z');  // 后端存 UTC，按本地时区展示
+  if(isNaN(d))return String(s).replace('T',' ').slice(0,16);
+  const p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;}
+function approvalBlockHTML(stage){
+  const mgr=isManager();
+  if(stage.approval_status==='approved'){
+    const rec=stage.approval||{};
+    return `<div class="apr-box approved">
+      <div class="apr-head"><span class="apr-badge on">✓ 审批通过</span>
+        ${mgr?`<button type="button" class="btn sm danger" onclick="doApprove(${stage.id},false)">撤销审批</button>`:''}</div>
+      <div class="apr-rec">
+        <div><span class="muted">审批人</span> <b>${esc(rec.approver||'—')}</b></div>
+        <div><span class="muted">时间</span> ${esc(fmtDT(rec.approved_at))}</div>
+        <div><span class="muted">意见</span> ${esc(rec.comment||'（无）')}</div>
+      </div>
+    </div>`;
+  }
+  return `<div class="apr-box">
+    <div class="apr-head"><span class="apr-badge off">○ 未审批</span></div>
+    ${mgr?`<textarea id="apr_comment" placeholder="审批意见（可选）" style="min-height:46px;margin-top:8px"></textarea>
+       <button type="button" class="btn primary sm" style="margin-top:8px" onclick="doApprove(${stage.id},true)">审批通过</button>`
+      :`<div class="muted" style="font-size:12px;margin-top:6px">待管理用户审批。普通用户只能查看。</div>`}
+  </div>`;
+}
+async function doApprove(stageId,approve){
+  try{
+    const comment=approve?(val('apr_comment')||''):'';
+    const st=await api('/stages/'+stageId+'/approval',{method:'POST',body:{approve,comment}});
+    toast(approve?'已审批通过':'已撤销审批');
+    const slot=document.getElementById('aprSlot');
+    if(slot&&st)slot.innerHTML=approvalBlockHTML(st);
+    await loadGoals();render();   // 刷新甘特上的审批 ✓ 标
+  }catch(e){toast(e.message||'操作失败',true);}
+}
 function openStageForm(stage){
   const dl=stage.deliverables||[];
   const dlRows=dl.map(d=>delivRowHTML(d.name,d.url)).join('');
   openModal(`阶段 · ${stage.stage_index+1}. ${stage.name}`,`
-    <div class="field"><label>状态</label>${segHTML('st_status',STAGE_STATUS,stage.status)}</div>
+    <div class="field"><label>标准状态</label>${segHTML('st_status',STAGE_STATUS,stage.status)}</div>
+    <div class="field"><label>审批状态</label><div id="aprSlot">${approvalBlockHTML(stage)}</div></div>
     <div class="two">
       <div class="field"><label>开始</label><input id="st_start" type="date" value="${stage.start_date||''}" onchange="syncEndDefault('st_start','st_end')"/></div>
       <div class="field"><label>结束</label><input id="st_end" type="date" value="${stage.end_date||''}"/></div>

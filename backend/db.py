@@ -69,12 +69,36 @@ def init_db() -> None:
 
 
 def _migrate() -> None:
-    """轻量迁移：给已存在的库补新列（保留数据，不重建）。"""
+    """轻量迁移：给已存在的库补新列 + 补种子（保留数据，不重建）。"""
+    from security import hash_password
+
     with engine.connect() as conn:
-        cols = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(stage)").fetchall()]
-        if "deliverables" not in cols:
+        stage_cols = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(stage)").fetchall()]
+        if "deliverables" not in stage_cols:
             conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN deliverables TEXT DEFAULT ''")
-            conn.commit()
+        # 阶段审批（独立于标准状态）
+        if "approval_status" not in stage_cols:
+            conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN approval_status VARCHAR DEFAULT 'pending'")
+            conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN approved_by_id INTEGER")
+            conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN approved_at DATETIME")
+            conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN approve_comment TEXT DEFAULT ''")
+
+        user_cols = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(user)").fetchall()]
+        if "role" not in user_cols:
+            conn.exec_driver_sql("ALTER TABLE user ADD COLUMN role VARCHAR DEFAULT 'normal'")
+            # 现有测试账号 chenzifei 设为管理用户，便于立刻测审批
+            conn.exec_driver_sql("UPDATE user SET role='manager' WHERE jira_username='chenzifei'")
+
+        # 管理控制台口令（单独 admin 账号，非 Jira 用户）：缺省播 admin123 的哈希
+        has_admin = conn.exec_driver_sql(
+            "SELECT 1 FROM app_setting WHERE key='admin_password_hash'"
+        ).first()
+        if not has_admin:
+            conn.exec_driver_sql(
+                "INSERT INTO app_setting (key, value) VALUES ('admin_password_hash', :v)",
+                {"v": hash_password("admin123")},
+            )
+        conn.commit()
 
 
 def _seed(s: Session) -> None:

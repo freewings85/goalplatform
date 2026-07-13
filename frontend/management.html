@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GoalPlatform · 管理控制台</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --panel:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#e5e8ee;
+    --primary:#4f46e5; --primary-weak:#eef2ff;
+    --ok:#16a34a; --ok-weak:#e9f7ef; --bad:#dc2626; --bad-weak:#fdecec; --warn:#d97706;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:920px;margin:0 auto;padding:26px 20px 60px}
+  .head{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+  .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#6366f1,#22d3ee);display:grid;place-items:center;color:#fff;font-weight:800}
+  .head b{font-size:17px}
+  .head small{display:block;color:var(--muted);font-size:11.5px}
+  .spacer{flex:1}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 1px 3px rgba(16,24,40,.06);padding:20px 22px;margin-bottom:18px}
+  .card h3{margin:0 0 14px;font-size:14px}
+  label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:6px;font-weight:600}
+  input,select{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:#fff;font-family:inherit}
+  .row{display:grid;grid-template-columns:1fr 1fr 150px auto;gap:12px;align-items:end}
+  .row .field{margin:0}
+  .btn{padding:9px 15px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font-size:13px;cursor:pointer;font-family:inherit;white-space:nowrap}
+  .btn:hover{background:#f8fafc}
+  .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+  .btn.primary:hover{filter:brightness(1.05)}
+  .btn.sm{padding:5px 10px;font-size:12px}
+  .btn.danger{color:var(--bad);border-color:#f6c9c9}
+  .btn.danger:hover{background:var(--bad-weak)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+  td select{width:auto;padding:5px 8px;font-size:12px}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600}
+  .pill.mgr{background:var(--primary-weak);color:var(--primary)}
+  .pill.norm{background:#f1f5f9;color:var(--muted)}
+  .pill.on{background:var(--ok-weak);color:var(--ok)}
+  .pill.off{background:var(--bad-weak);color:var(--bad)}
+  .muted{color:var(--muted)}
+  .note{background:#f1f5ff;border:1px solid #dbe4ff;color:#3949ab;border-radius:10px;padding:10px 13px;font-size:12.5px;margin:0 0 16px}
+  /* login gate */
+  .gate{min-height:100vh;display:grid;place-items:center}
+  .gatebox{width:360px;max-width:92vw;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.12);padding:28px 26px}
+  .gatebox .logo{margin:0 auto 12px}
+  .gatebox h2{margin:0 0 4px;text-align:center;font-size:18px}
+  .gatebox p{margin:0 0 18px;text-align:center;color:var(--muted);font-size:12.5px}
+  .toast{position:fixed;right:20px;bottom:20px;background:var(--ink);color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.25);opacity:0;transform:translateY(8px);transition:.2s;z-index:60}
+  .toast.show{opacity:1;transform:none}
+  .toast.err{background:var(--bad)}
+  [hidden]{display:none!important}
+  .backlink{color:var(--primary);text-decoration:none;font-size:12.5px}
+</style>
+</head>
+<body>
+  <!-- 登录门 -->
+  <div id="gate" class="gate">
+    <div class="gatebox">
+      <div class="logo">G</div>
+      <h2>管理控制台</h2>
+      <p>用管理员账号登录（默认 admin / admin123）</p>
+      <label>管理员密码</label>
+      <input id="adm_pw" type="password" placeholder="admin123" onkeydown="if(event.key==='Enter')doLogin()"/>
+      <button class="btn primary" style="width:100%;margin-top:14px" onclick="doLogin()">登录</button>
+      <p style="margin-top:14px"><a class="backlink" href="/">← 回到目标平台</a></p>
+    </div>
+  </div>
+
+  <!-- 控制台 -->
+  <div id="console" class="wrap" hidden>
+    <div class="head">
+      <div class="logo">G</div>
+      <div><b>用户管理</b><small>只有在此添加的账号才能用 Jira 登录目标平台</small></div>
+      <div class="spacer"></div>
+      <a class="backlink" href="/" style="margin-right:6px">目标平台 ↗</a>
+      <button class="btn sm" onclick="openPw()">改密码</button>
+      <button class="btn sm" onclick="doLogout()">退出</button>
+    </div>
+
+    <div class="card">
+      <h3>添加用户</h3>
+      <div class="note">添加即加入登录白名单。用户仍用自己的 Jira 用户名/密码登录；这里只登记「显示名 + Jira 用户名 + 角色」。管理用户可在目标平台里审批阶段。</div>
+      <div class="row">
+        <div class="field"><label>显示名</label><input id="nu_name" placeholder="如 陈自飞"/></div>
+        <div class="field"><label>Jira 用户名</label><input id="nu_jira" placeholder="如 chenzifei"/></div>
+        <div class="field"><label>角色</label><select id="nu_role"><option value="normal">普通用户</option><option value="manager">管理用户</option></select></div>
+        <button class="btn primary" onclick="addUser()">＋ 添加</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>用户列表</h3>
+      <table>
+        <thead><tr><th>显示名</th><th>Jira 用户名</th><th>角色</th><th>登录状态</th><th style="width:150px">操作</th></tr></thead>
+        <tbody id="ulist"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 改密弹窗 -->
+  <div id="pwModal" class="gate" hidden style="position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:50">
+    <div class="gatebox">
+      <h2 style="font-size:16px">修改管理员密码</h2>
+      <p>改完后请牢记，忘记需改数据库。</p>
+      <label>原密码</label><input id="pw_old" type="password"/>
+      <label style="margin-top:10px">新密码（至少 6 位）</label><input id="pw_new" type="password"/>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="btn" style="flex:1" onclick="closePw()">取消</button>
+        <button class="btn primary" style="flex:1" onclick="savePw()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+<script>
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(m,err){const t=document.getElementById('toast');t.textContent=m;t.className='toast show'+(err?' err':'');setTimeout(()=>t.className='toast',2400);}
+async function api(path,opts={}){
+  const r=await fetch('/api'+path,{method:opts.method||'GET',headers:opts.body?{'Content-Type':'application/json'}:{},
+    body:opts.body?JSON.stringify(opts.body):undefined,credentials:'same-origin'});
+  if(r.status===204)return null;
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(data.detail||('HTTP '+r.status));
+  return data;
+}
+const ROLE=v=>v==='manager'?'<span class="pill mgr">管理用户</span>':'<span class="pill norm">普通用户</span>';
+
+async function boot(){
+  const st=await api('/admin/status').catch(()=>({logged_in:false}));
+  if(st.logged_in){showConsole();}else{document.getElementById('gate').hidden=false;document.getElementById('console').hidden=true;}
+}
+async function doLogin(){
+  const pw=document.getElementById('adm_pw').value;
+  try{await api('/admin/login',{method:'POST',body:{password:pw}});showConsole();}
+  catch(e){toast(e.message||'登录失败',true);}
+}
+async function doLogout(){await api('/admin/logout',{method:'POST'}).catch(()=>{});location.reload();}
+function showConsole(){document.getElementById('gate').hidden=true;document.getElementById('console').hidden=false;loadUsers();}
+
+async function loadUsers(){
+  const users=await api('/admin/users');
+  const tb=document.getElementById('ulist');
+  tb.innerHTML=users.map(u=>`<tr data-id="${u.id}">
+    <td><b>${esc(u.name)}</b></td>
+    <td>${esc(u.jira_username)||'<span class="muted">—</span>'}</td>
+    <td>
+      <select onchange="setRole(${u.id},this.value)">
+        <option value="normal" ${u.role==='normal'?'selected':''}>普通用户</option>
+        <option value="manager" ${u.role==='manager'?'selected':''}>管理用户</option>
+      </select>
+    </td>
+    <td>${u.linked?'<span class="pill on">已登录过</span>':'<span class="pill off">未登录</span>'} ${u.is_active?'':'<span class="pill off">停用</span>'}</td>
+    <td>
+      <button class="btn sm" onclick="toggleActive(${u.id},${u.is_active?0:1})">${u.is_active?'停用':'启用'}</button>
+      <button class="btn sm danger" onclick="delUser(${u.id},'${esc(u.name)}')">删除</button>
+    </td>
+  </tr>`).join('')||`<tr><td colspan="5" class="muted">还没有用户，先在上面添加 →</td></tr>`;
+}
+async function addUser(){
+  const name=document.getElementById('nu_name').value.trim();
+  const jira=document.getElementById('nu_jira').value.trim();
+  const role=document.getElementById('nu_role').value;
+  if(!name||!jira)return toast('显示名和 Jira 用户名都要填',true);
+  try{await api('/admin/users',{method:'POST',body:{name,jira_username:jira,role}});
+    document.getElementById('nu_name').value='';document.getElementById('nu_jira').value='';document.getElementById('nu_role').value='normal';
+    toast('已添加');loadUsers();}
+  catch(e){toast(e.message,true);}
+}
+async function setRole(id,role){try{await api('/admin/users/'+id,{method:'PATCH',body:{role}});toast('角色已更新');}catch(e){toast(e.message,true);loadUsers();}}
+async function toggleActive(id,on){try{await api('/admin/users/'+id,{method:'PATCH',body:{is_active:!!on}});toast(on?'已启用':'已停用');loadUsers();}catch(e){toast(e.message,true);}}
+async function delUser(id,name){if(!confirm('删除用户「'+name+'」？该账号将无法再登录。'))return;
+  try{await api('/admin/users/'+id,{method:'DELETE'});toast('已删除');loadUsers();}catch(e){toast(e.message,true);}}
+
+function openPw(){document.getElementById('pw_old').value='';document.getElementById('pw_new').value='';document.getElementById('pwModal').hidden=false;}
+function closePw(){document.getElementById('pwModal').hidden=true;}
+async function savePw(){
+  const oldp=document.getElementById('pw_old').value,newp=document.getElementById('pw_new').value;
+  try{await api('/admin/password',{method:'POST',body:{old_password:oldp,new_password:newp}});toast('密码已修改');closePw();}
+  catch(e){toast(e.message,true);}
+}
+boot();
+</script>
+</body>
+</html>
