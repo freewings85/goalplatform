@@ -1,9 +1,27 @@
 """把表对象组装成前端要的 dict（含嵌套 KR / 阶段）。"""
 from __future__ import annotations
 
+import json
+
 from sqlmodel import Session, select
 
 from models import Goal, KeyResult, Stage, User
+
+
+def _parse_deliverables(raw: str) -> list[dict]:
+    """把阶段 deliverables 的 JSON 文本解析成 [{name,url}]；坏数据一律回空列表。"""
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except (ValueError, TypeError):
+        return []
+    out: list[dict] = []
+    if isinstance(data, list):
+        for it in data:
+            if isinstance(it, dict):
+                out.append({"name": str(it.get("name", "")), "url": str(it.get("url", ""))})
+    return out
 
 
 def user_dict(u: User) -> dict:
@@ -28,6 +46,7 @@ def stage_dict(st: Stage) -> dict:
         "start_date": st.start_date,
         "end_date": st.end_date,
         "jira_key": st.jira_key,
+        "deliverables": _parse_deliverables(st.deliverables),
     }
 
 

@@ -52,12 +52,18 @@ class KRUpdate(SQLModel):
 
 
 # ---- 阶段（固定 5 个，只能改，不能增删） ----
+class DeliverableIn(SQLModel):
+    name: str = ""
+    url: str = ""
+
+
 class StageIn(SQLModel):
     """新建目标时可选地为某阶段排期 / 设状态（按位置 0..4 对应固定 5 阶段）。"""
     status: Optional[StageStatus] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     jira_key: Optional[str] = None
+    deliverables: Optional[list[DeliverableIn]] = None
 
 
 class StageUpdate(SQLModel):
@@ -65,6 +71,7 @@ class StageUpdate(SQLModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     jira_key: Optional[str] = None
+    deliverables: Optional[list[DeliverableIn]] = None
 
 
 # ---- 目标 ----

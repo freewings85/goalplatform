@@ -61,10 +61,20 @@ def make_stages(goal_id: int, plan: list[tuple[str, str, str]] | None = None) ->
 
 def init_db() -> None:
     SQLModel.metadata.create_all(engine)
+    _migrate()
     with Session(engine) as s:
         if s.exec(select(BusinessLine)).first():
             return  # 已初始化，不重复种子
         _seed(s)
+
+
+def _migrate() -> None:
+    """轻量迁移：给已存在的库补新列（保留数据，不重建）。"""
+    with engine.connect() as conn:
+        cols = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(stage)").fetchall()]
+        if "deliverables" not in cols:
+            conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN deliverables TEXT DEFAULT ''")
+            conn.commit()
 
 
 def _seed(s: Session) -> None:

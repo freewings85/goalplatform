@@ -1,6 +1,7 @@
 """目标 CRUD（含递归树、KR、固定 5 阶段计划）。这是系统的核心。"""
 from __future__ import annotations
 
+import json
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,6 +16,19 @@ from schemas import GoalIn, GoalUpdate, JiraLinkIn, KRIn, KRUpdate, StageUpdate
 from serializers import goal_dict, kr_dict, stage_dict
 
 router = APIRouter(prefix="/api", tags=["goals"])
+
+
+def _dump_deliverables(items) -> str:
+    """把 [DeliverableIn] 存成 JSON 文本；过滤全空条目。"""
+    if not items:
+        return ""
+    rows = []
+    for it in items:
+        name = (it.name or "").strip()
+        url = (it.url or "").strip()
+        if name or url:
+            rows.append({"name": name, "url": url})
+    return json.dumps(rows, ensure_ascii=False) if rows else ""
 
 
 def _sync_goal_to_jira(session: Session, goal: Goal, user: User | None) -> str | None:
@@ -120,6 +134,8 @@ def create_goal(payload: GoalIn, session: Session = Depends(get_session), user: 
             stages[i].end_date = s.end_date
         if s.jira_key is not None:
             stages[i].jira_key = s.jira_key
+        if s.deliverables is not None:
+            stages[i].deliverables = _dump_deliverables(s.deliverables)
     session.add_all(stages)
     session.commit()
     session.refresh(g)
@@ -223,7 +239,11 @@ def update_stage(stage_id: int, payload: StageUpdate, session: Session = Depends
     st = session.get(Stage, stage_id)
     if not st:
         raise HTTPException(404, "阶段不存在")
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    if "deliverables" in data:
+        st.deliverables = _dump_deliverables(payload.deliverables)
+        data.pop("deliverables")
+    for k, v in data.items():
         setattr(st, k, v)
     session.add(st)
     session.commit()

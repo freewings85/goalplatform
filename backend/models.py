@@ -125,3 +125,4 @@ class Stage(SQLModel, table=True):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     jira_key: str = ""
+    deliverables: str = ""                       # 产出物列表（JSON：[{name,url}]，用户手填的名称+链接）
