@@ -9,9 +9,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# 先装依赖（单独一层，利用构建缓存）
+# 先装依赖（单独一层，利用构建缓存）；用阿里云 PyPI 镜像加速
 COPY backend/requirements.txt backend/requirements.txt
-RUN pip install -r backend/requirements.txt
+RUN pip install -i https://mirrors.aliyun.com/pypi/simple/ -r backend/requirements.txt
 
 # 拷贝应用（前端 + 后端）；.dockerignore 已排除 .venv / *.db / .secret_key / __pycache__
 COPY backend/ backend/
