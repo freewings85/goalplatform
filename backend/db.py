@@ -1,6 +1,7 @@
 """数据库引擎、会话、初始化与种子数据。"""
 from __future__ import annotations
 
+import os
 from datetime import date
 from pathlib import Path
 
@@ -20,7 +21,9 @@ from models import (
 )
 from jira_config import DEFAULT_BASE_URL, DEFAULT_ISSUE_TYPE
 
-DB_PATH = Path(__file__).parent / "goalplatform.db"
+# DB 路径可用环境变量覆盖（Docker 里指到挂载卷，如 /data/goalplatform.db）
+DB_PATH = Path(os.environ.get("GOALPLATFORM_DB_PATH") or (Path(__file__).parent / "goalplatform.db"))
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 engine = create_engine(
     f"sqlite:///{DB_PATH}",
     connect_args={"check_same_thread": False},

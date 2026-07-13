@@ -1,0 +1,20 @@
+# GoalPlatform 部署：单实例（SQLite 是单写库，别起多副本写同一个卷）
+services:
+  goalplatform:
+    build: .
+    image: goalplatform:latest
+    container_name: goalplatform
+    ports:
+      - "8000:8000"          # 对外端口，按需改左边
+    environment:
+      # 强烈建议：固定一个加密密钥（用于加密存储的 Jira 密码）。
+      # 不设则容器内自动生成并存到 /data 卷——只要卷在就不会丢。
+      # 生成一个：python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"
+      - GOALPLATFORM_SECRET_KEY=${GOALPLATFORM_SECRET_KEY:-}
+    volumes:
+      - goalplatform-data:/data     # SQLite 库 + 密钥；持久化的唯一目录
+    restart: unless-stopped
+    # 容器需能访问内网 Jira（192.168.100.130:18080）——确保网络可达
+
+volumes:
+  goalplatform-data:

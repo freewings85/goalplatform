@@ -1,0 +1,28 @@
+# 只把 backend/ 和 frontend/ 的源码放进构建上下文，其余排除
+.git
+.gitignore
+docs/
+prototype/
+run.sh
+README.md
+*.md
+
+# Python 运行时产物 / 虚拟环境
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.ruff_cache/
+**/.mypy_cache/
+
+# 本地数据与密钥（绝不入镜像；容器里落到 /data 卷）
+**/*.db
+**/goalplatform.db
+**/.secret_key
+.env
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store

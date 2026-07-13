@@ -12,7 +12,8 @@ from pathlib import Path
 
 from cryptography.fernet import Fernet
 
-_KEY_FILE = Path(__file__).parent / ".secret_key"
+# 密钥文件路径可用环境变量覆盖（Docker 里指到挂载卷，如 /data/.secret_key）
+_KEY_FILE = Path(os.environ.get("GOALPLATFORM_SECRET_KEY_FILE") or (Path(__file__).parent / ".secret_key"))
 
 
 def _load_key() -> bytes:
@@ -22,6 +23,7 @@ def _load_key() -> bytes:
     if _KEY_FILE.exists():
         return _KEY_FILE.read_bytes().strip()
     key = Fernet.generate_key()
+    _KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
     _KEY_FILE.write_bytes(key)
     return key
 
