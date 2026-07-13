@@ -69,7 +69,7 @@ API 文档见 **http://127.0.0.1:8000/docs**。首次启动自动建表并播种
 对接**自建 Jira Server / Data Center**（如 8.1.0），直连真站点，无 mock。
 
 - **登录 = 用 Jira 的用户名 + 密码**：系统打开是登录门，填 Jira 账号密码 → 后端拿去 Jira 校验（`/rest/api/2/myself`）→ 通过即登录。用户由登录自动创建/认领。**不做独立系统账号**。
-- **凭据安全**：Jira Server 8.1 无 OAuth 3LO、也无 PAT（8.14+ 才有），故用 Basic auth。密码用 Fernet 加密存（`security.py`，密钥在 `backend/.secret_key`，gitignore），任何接口都不回显；会话是签名 cookie。
+- **凭据安全**：Jira Server 8.1 无 OAuth 3LO、也无 PAT（8.14+ 才有），故用 Basic auth。密码用 Fernet 加密存（`security.py`），任何接口都不回显；会话是签名 cookie。密钥来源依次：环境变量 `GOALPLATFORM_SECRET_KEY` → 密钥文件（本地 `backend/.secret_key`，gitignore）→ 自动生成并存库（`app_setting.secret_key`），生产零配置。
 - **每个目标 = 一个 Jira issue**（一对一），建在业务线的「默认 Jira 项目 Key」下（问题类型名可在设置里配，默认「任务」）。目标树父子关系权威存本平台；父目标已同步时在 Jira 侧建一条 `Relates` link 弱表达。指派给目标负责人（若其也用 Jira 登录过）。
 - **建目标时「同步到 Jira」开关，默认开**：开=在该项目下建 issue、回填 key/链接；关=事后「立即同步」或「关联已有 issue」。同步失败不阻断目标创建。**执行、文档、附件都在 Jira**，平台只存目标/计划并链接过去。
 - **REST v2 客户端**：`jira_client.py`（Basic auth + 纯文本描述，走 `{base}/rest/api/2/...`）。换别的 Jira 只改「站点地址」+ 各人登录名密码，代码不动。

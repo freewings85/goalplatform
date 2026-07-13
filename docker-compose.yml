@@ -1,5 +1,5 @@
 # GoalPlatform 部署
-# 存储：设 GOALPLATFORM_MYSQL_HOST 用公司 MySQL（生产推荐，可多副本）；
+# 存储：设 GOALPLATFORM_MYSQL_HOST 用公司 MySQL（生产推荐，容器无状态、可多副本）；
 #      不设则回退容器内 SQLite（单写库，别起多副本写同一个卷）
 services:
   goalplatform:
@@ -9,8 +9,8 @@ services:
     ports:
       - "8000:8000"          # 对外端口，按需改左边
     environment:
-      # 强烈建议：固定一个加密密钥（用于加密存储的 Jira 密码）。
-      # 不设则容器内自动生成并存到 /data 卷——只要卷在就不会丢。
+      # 加密密钥（加密存储的 Jira 密码 + 签会话 cookie）可不配：
+      # 首次启动自动生成并存库（app_setting.secret_key）。要显式控制就设这个（优先生效）：
       # 生成一个：python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"
       - GOALPLATFORM_SECRET_KEY=${GOALPLATFORM_SECRET_KEY:-}
       # MySQL（公司已有实例）：设 HOST 即启用；库需预先建好：
@@ -22,7 +22,7 @@ services:
       - GOALPLATFORM_MYSQL_PASSWORD=${GOALPLATFORM_MYSQL_PASSWORD:-}
       - GOALPLATFORM_MYSQL_DB=${GOALPLATFORM_MYSQL_DB:-goalplatform}
     volumes:
-      - goalplatform-data:/data     # 密钥 +（SQLite 后备时的）库文件
+      - goalplatform-data:/data     # 仅 SQLite 后备时有用（库文件落这）；用 MySQL 可删掉这两处 volumes
     restart: unless-stopped
     # 容器需能访问内网 Jira（192.168.100.130:18080）与 MySQL——确保网络可达
 
