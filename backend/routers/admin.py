@@ -12,7 +12,7 @@ from sqlmodel import Session, select
 from db import get_session
 from deps import ADMIN_COOKIE, require_admin
 from jira_config import get_setting, set_setting
-from models import Goal, User
+from models import Goal, Stage, User
 from schemas import AdminLoginIn, AdminPasswordIn, AdminUserIn, AdminUserUpdate
 from security import hash_password, make_admin_token, read_admin_token, verify_password
 from serializers import user_dict
@@ -113,5 +113,8 @@ def admin_delete_user(user_id: int, session: Session = Depends(get_session), _: 
     for g in session.exec(select(Goal).where(Goal.owner_user_id == user_id)).all():
         g.owner_user_id = None
         session.add(g)
+    for st in session.exec(select(Stage).where(Stage.approved_by_id == user_id)).all():
+        st.approved_by_id = None  # 保留审批状态/意见，只断开外键
+        session.add(st)
     session.delete(u)
     session.commit()

@@ -5,6 +5,7 @@ import json
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import delete as sa_delete
 from sqlmodel import Session, select
 
 from datetime import datetime
@@ -178,26 +179,25 @@ def delete_goal(goal_id: int, session: Session = Depends(get_session)):
     g = session.get(Goal, goal_id)
     if not g:
         raise HTTPException(404, "目标不存在")
-    ids = [goal_id] + list(_descendant_ids(goal_id, session))
-    for gid in ids:
-        for st in session.exec(select(Stage).where(Stage.goal_id == gid)).all():
-            session.delete(st)
-        for kr in session.exec(select(KeyResult).where(KeyResult.goal_id == gid)).all():
-            session.delete(kr)
-        session.delete(session.get(Goal, gid))
+    # 显式按外键依赖排序删（MySQL 强制外键；ORM 级 session.delete 不保证跨表顺序）
+    ids = [goal_id] + _descendant_ids(goal_id, session)
+    session.exec(sa_delete(Stage).where(Stage.goal_id.in_(ids)))
+    session.exec(sa_delete(KeyResult).where(KeyResult.goal_id.in_(ids)))
+    for gid in reversed(ids):  # BFS 序反着删：子目标先于父目标（parent_id 自引用外键）
+        session.exec(sa_delete(Goal).where(Goal.id == gid))
     session.commit()
 
 
-def _descendant_ids(goal_id: int, session: Session) -> set[int]:
-    """递归收集所有子孙目标 id。"""
-    out: set[int] = set()
+def _descendant_ids(goal_id: int, session: Session) -> list[int]:
+    """BFS 收集所有子孙目标 id（父在前、子在后，供按依赖序删除）。"""
+    out: list[int] = []
     frontier = [goal_id]
     while frontier:
-        cur = frontier.pop()
+        cur = frontier.pop(0)
         kids = session.exec(select(Goal.id).where(Goal.parent_id == cur)).all()
         for k in kids:
             if k not in out:
-                out.add(k)
+                out.append(k)
                 frontier.append(k)
     return out
 

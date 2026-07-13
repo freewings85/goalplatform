@@ -28,9 +28,28 @@
 ```
 
 浏览器打开 **http://127.0.0.1:8000/**（前端由后端同源托管）。
-API 文档见 **http://127.0.0.1:8000/docs**。首次启动自动建库并播种示例数据（SQLite，落在 `backend/goalplatform.db`）。
+API 文档见 **http://127.0.0.1:8000/docs**。首次启动自动建表并播种示例数据。
 
 > 手动方式：`cd backend && uv pip install --python .venv/bin/python -r requirements.txt && .venv/bin/uvicorn main:app --reload`
+
+### 数据存储（MySQL / SQLite）
+
+生产用 **MySQL**（公司已有实例），本地开发不配任何变量即回退 **SQLite**（`backend/goalplatform.db`）：
+
+| 环境变量 | 说明 | 默认 |
+|---|---|---|
+| `GOALPLATFORM_MYSQL_HOST` | 设了即启用 MySQL；不设走 SQLite | （空） |
+| `GOALPLATFORM_MYSQL_PORT` | 端口 | `3306` |
+| `GOALPLATFORM_MYSQL_USER` | 账号 | `root` |
+| `GOALPLATFORM_MYSQL_PASSWORD` | 密码 | （空） |
+| `GOALPLATFORM_MYSQL_DB` | 库名 | `goalplatform` |
+
+- **库要预先建好**（表由应用启动时自动创建 + 播种）：
+  ```sql
+  CREATE DATABASE goalplatform CHARACTER SET utf8mb4;
+  ```
+- MySQL 连不上会**启动失败**（fail fast），不会静默回退 SQLite。
+- 用 MySQL 时应用可起多副本；SQLite 是单写库，只能单实例。
 
 ## 本版范围（做了减法）
 
@@ -60,7 +79,7 @@ API 文档见 **http://127.0.0.1:8000/docs**。首次启动自动建库并播种
 
 ## 技术栈
 
-- 后端：**Python / FastAPI + SQLModel + SQLite + httpx + cryptography**（`backend/`）
+- 后端：**Python / FastAPI + SQLModel + MySQL（本地后备 SQLite）+ httpx + cryptography**（`backend/`）
 - 前端：**单文件原生 SPA**（`frontend/index.html`，复用原型设计，直连 API；本版从简，未上 React/Vite）
 - `prototype/index.html` 为最初的静态高保真原型，保留作设计参照。
 

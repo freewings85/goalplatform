@@ -1,5 +1,6 @@
-# GoalPlatform —— 单容器：FastAPI 后端（同时托管前端静态页）+ 嵌入式 SQLite
-# 不需要单独的数据库服务；数据（SQLite 库 + 加密密钥）落在挂载卷 /data。
+# GoalPlatform —— 单容器：FastAPI 后端（同时托管前端静态页）
+# 存储：设 GOALPLATFORM_MYSQL_* 连公司 MySQL（生产）；不设回退嵌入式 SQLite。
+# /data 卷存加密密钥 +（SQLite 后备时的）库文件。
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -17,7 +18,8 @@ COPY backend/ backend/
 COPY frontend/ frontend/
 
 # 数据落到卷：重启 / 重发布都不丢
-#  - GOALPLATFORM_DB_PATH         SQLite 库路径
+#  - GOALPLATFORM_MYSQL_HOST 等   MySQL 连接（见 docker-compose.yml；设 HOST 即启用）
+#  - GOALPLATFORM_DB_PATH         SQLite 后备库路径
 #  - GOALPLATFORM_SECRET_KEY_FILE 自动生成的加密密钥落盘位置（若未显式给 KEY）
 #  也可用 GOALPLATFORM_SECRET_KEY 直接注入一个固定密钥（推荐，见 README/compose）
 ENV GOALPLATFORM_DB_PATH=/data/goalplatform.db \

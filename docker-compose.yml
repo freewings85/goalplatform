@@ -1,4 +1,6 @@
-# GoalPlatform 部署：单实例（SQLite 是单写库，别起多副本写同一个卷）
+# GoalPlatform 部署
+# 存储：设 GOALPLATFORM_MYSQL_HOST 用公司 MySQL（生产推荐，可多副本）；
+#      不设则回退容器内 SQLite（单写库，别起多副本写同一个卷）
 services:
   goalplatform:
     build: .
@@ -11,10 +13,18 @@ services:
       # 不设则容器内自动生成并存到 /data 卷——只要卷在就不会丢。
       # 生成一个：python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"
       - GOALPLATFORM_SECRET_KEY=${GOALPLATFORM_SECRET_KEY:-}
+      # MySQL（公司已有实例）：设 HOST 即启用；库需预先建好：
+      #   CREATE DATABASE goalplatform CHARACTER SET utf8mb4;
+      # 表由应用启动时自动创建。连不上会启动失败（不回退 SQLite）。
+      - GOALPLATFORM_MYSQL_HOST=${GOALPLATFORM_MYSQL_HOST:-}
+      - GOALPLATFORM_MYSQL_PORT=${GOALPLATFORM_MYSQL_PORT:-3306}
+      - GOALPLATFORM_MYSQL_USER=${GOALPLATFORM_MYSQL_USER:-root}
+      - GOALPLATFORM_MYSQL_PASSWORD=${GOALPLATFORM_MYSQL_PASSWORD:-}
+      - GOALPLATFORM_MYSQL_DB=${GOALPLATFORM_MYSQL_DB:-goalplatform}
     volumes:
-      - goalplatform-data:/data     # SQLite 库 + 密钥；持久化的唯一目录
+      - goalplatform-data:/data     # 密钥 +（SQLite 后备时的）库文件
     restart: unless-stopped
-    # 容器需能访问内网 Jira（192.168.100.130:18080）——确保网络可达
+    # 容器需能访问内网 Jira（192.168.100.130:18080）与 MySQL——确保网络可达
 
 volumes:
   goalplatform-data:

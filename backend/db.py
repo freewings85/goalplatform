@@ -5,6 +5,7 @@ import os
 from datetime import date
 from pathlib import Path
 
+from sqlalchemy import URL, inspect
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from models import (
@@ -21,13 +22,32 @@ from models import (
 )
 from jira_config import DEFAULT_BASE_URL, DEFAULT_ISSUE_TYPE
 
-# DB 路径可用环境变量覆盖（Docker 里指到挂载卷，如 /data/goalplatform.db）
-DB_PATH = Path(os.environ.get("GOALPLATFORM_DB_PATH") or (Path(__file__).parent / "goalplatform.db"))
-DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-engine = create_engine(
-    f"sqlite:///{DB_PATH}",
-    connect_args={"check_same_thread": False},
-)
+# 存储后端二选一（由是否配置 GOALPLATFORM_MYSQL_HOST 决定，连不上不回退——fail fast）：
+# - MySQL（生产）：GOALPLATFORM_MYSQL_HOST / PORT / USER / PASSWORD / DB
+#   库需预先建好：CREATE DATABASE goalplatform CHARACTER SET utf8mb4; 表由启动时自动建
+# - SQLite（本地开发后备）：路径可用 GOALPLATFORM_DB_PATH 覆盖（Docker 里指到挂载卷）
+_mysql_host = os.environ.get("GOALPLATFORM_MYSQL_HOST", "")
+if _mysql_host:
+    engine = create_engine(
+        URL.create(
+            "mysql+pymysql",
+            username=os.environ.get("GOALPLATFORM_MYSQL_USER", "root"),
+            password=os.environ.get("GOALPLATFORM_MYSQL_PASSWORD", ""),
+            host=_mysql_host,
+            port=int(os.environ.get("GOALPLATFORM_MYSQL_PORT", "3306")),
+            database=os.environ.get("GOALPLATFORM_MYSQL_DB", "goalplatform"),
+            query={"charset": "utf8mb4"},
+        ),
+        pool_pre_ping=True,   # 取连接先探活，防服务器掐掉空闲连接后报错
+        pool_recycle=3600,
+    )
+else:
+    DB_PATH = Path(os.environ.get("GOALPLATFORM_DB_PATH") or (Path(__file__).parent / "goalplatform.db"))
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    engine = create_engine(
+        f"sqlite:///{DB_PATH}",
+        connect_args={"check_same_thread": False},
+    )
 
 
 def get_session():
@@ -72,38 +92,40 @@ def init_db() -> None:
 
 
 def _migrate() -> None:
-    """轻量迁移：给已存在的库补新列 + 补种子（保留数据，不重建）。"""
+    """轻量迁移：给已存在的库补新列 + 补种子（保留数据，不重建）。
+
+    补列只针对 SQLite（历史库是 SQLite 时代建的）；MySQL 是全新库，
+    create_all 直接建出完整表结构，不存在旧表补列。
+    """
     from security import hash_password
 
-    with engine.connect() as conn:
-        stage_cols = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(stage)").fetchall()]
-        if "deliverables" not in stage_cols:
-            conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN deliverables TEXT DEFAULT ''")
-        if "note" not in stage_cols:
-            conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN note TEXT DEFAULT ''")
-        # 阶段审批（独立于标准状态）
-        if "approval_status" not in stage_cols:
-            conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN approval_status VARCHAR DEFAULT 'pending'")
-            conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN approved_by_id INTEGER")
-            conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN approved_at DATETIME")
-            conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN approve_comment TEXT DEFAULT ''")
+    if engine.dialect.name == "sqlite":
+        insp = inspect(engine)
+        with engine.connect() as conn:
+            stage_cols = [c["name"] for c in insp.get_columns("stage")]
+            if "deliverables" not in stage_cols:
+                conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN deliverables TEXT DEFAULT ''")
+            if "note" not in stage_cols:
+                conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN note TEXT DEFAULT ''")
+            # 阶段审批（独立于标准状态）
+            if "approval_status" not in stage_cols:
+                conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN approval_status VARCHAR DEFAULT 'pending'")
+                conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN approved_by_id INTEGER")
+                conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN approved_at DATETIME")
+                conn.exec_driver_sql("ALTER TABLE stage ADD COLUMN approve_comment TEXT DEFAULT ''")
 
-        user_cols = [r[1] for r in conn.exec_driver_sql("PRAGMA table_info(user)").fetchall()]
-        if "role" not in user_cols:
-            conn.exec_driver_sql("ALTER TABLE user ADD COLUMN role VARCHAR DEFAULT 'normal'")
-            # 现有测试账号 chenzifei 设为管理用户，便于立刻测审批
-            conn.exec_driver_sql("UPDATE user SET role='manager' WHERE jira_username='chenzifei'")
+            user_cols = [c["name"] for c in insp.get_columns("user")]
+            if "role" not in user_cols:
+                conn.exec_driver_sql("ALTER TABLE user ADD COLUMN role VARCHAR DEFAULT 'normal'")
+                # 现有测试账号 chenzifei 设为管理用户，便于立刻测审批
+                conn.exec_driver_sql("UPDATE user SET role='manager' WHERE jira_username='chenzifei'")
+            conn.commit()
 
-        # 管理控制台口令（单独 admin 账号，非 Jira 用户）：缺省播 admin123 的哈希
-        has_admin = conn.exec_driver_sql(
-            "SELECT 1 FROM app_setting WHERE key='admin_password_hash'"
-        ).first()
-        if not has_admin:
-            conn.exec_driver_sql(
-                "INSERT INTO app_setting (key, value) VALUES ('admin_password_hash', :v)",
-                {"v": hash_password("admin123")},
-            )
-        conn.commit()
+    # 管理控制台口令（单独 admin 账号，非 Jira 用户）：缺省播 admin123 的哈希
+    with Session(engine) as s:
+        if not s.get(AppSetting, "admin_password_hash"):
+            s.add(AppSetting(key="admin_password_hash", value=hash_password("admin123")))
+            s.commit()
 
 
 def _seed(s: Session) -> None:

@@ -1,8 +1,12 @@
-"""数据模型（SQLModel / SQLite）。
+"""数据模型（SQLModel / MySQL 或 SQLite）。
 
 设计原则（本版做减法）：
 - 重点是「目标 + 计划」的增删改查与持久化。
 - 不做任何达成度 / 百分比计算：健康度、阶段状态都是**人工选择的枚举字段**，不落任何 rollup 数字。
+
+字段类型约定（MySQL 的 VARCHAR 必须有长度，SQLite 不强制但兼容）：
+- 普通短字段 max_length=255；短标识（jira key 等）64；URL 512
+- 不限长度的文本（备注 / 审批意见 / 密文等）用 TEXT
 """
 from __future__ import annotations
 
@@ -10,6 +14,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Optional
 
+from sqlalchemy import Text
 from sqlmodel import Field, SQLModel
 
 
@@ -51,10 +56,10 @@ class BusinessLine(SQLModel, table=True):
     """业务线：一条 agent 产品线。目标与计划都按业务线分组。"""
     __tablename__ = "business_line"
     id: Optional[int] = Field(default=None, primary_key=True)
-    name: str
-    description: str = ""
-    owner: str = ""
-    jira_project_key: str = ""
+    name: str = Field(max_length=255)
+    description: str = Field(default="", sa_type=Text)
+    owner: str = Field(default="", max_length=255)
+    jira_project_key: str = Field(default="", max_length=64)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -62,7 +67,7 @@ class Cycle(SQLModel, table=True):
     """周期：季度 / 月迭代桶，可归档。"""
     __tablename__ = "cycle"
     id: Optional[int] = Field(default=None, primary_key=True)
-    name: str                                   # 如 "2026 Q3"
+    name: str = Field(max_length=255)           # 如 "2026 Q3"
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     status: CycleStatus = CycleStatus.active
@@ -78,10 +83,10 @@ class User(SQLModel, table=True):
     """
     __tablename__ = "user"
     id: Optional[int] = Field(default=None, primary_key=True)
-    name: str                                   # 显示名（Jira displayName），如 陈自飞
-    email: str = ""
-    jira_username: str = Field(default="", index=True)  # Jira 登录名 / key，如 chenzifei（也是 assignee 用的 name）
-    jira_password_enc: str = ""                 # Fernet 加密的 Jira 密码（只写不读）
+    name: str = Field(max_length=255)           # 显示名（Jira displayName），如 陈自飞
+    email: str = Field(default="", max_length=255)
+    jira_username: str = Field(default="", index=True, max_length=255)  # Jira 登录名 / key，如 chenzifei（也是 assignee 用的 name）
+    jira_password_enc: str = Field(default="", sa_type=Text)  # Fernet 加密的 Jira 密码（只写不读）
     role: UserRole = UserRole.normal            # 普通 / 管理（管理才可审批）
     is_active: bool = True
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -90,8 +95,8 @@ class User(SQLModel, table=True):
 class AppSetting(SQLModel, table=True):
     """全局键值配置：jira_base_url（Jira 站点）、jira_issue_type（建 issue 用的类型名）。"""
     __tablename__ = "app_setting"
-    key: str = Field(primary_key=True)
-    value: str = ""
+    key: str = Field(primary_key=True, max_length=64)
+    value: str = Field(default="", sa_type=Text)
 
 
 class Goal(SQLModel, table=True):
@@ -101,16 +106,16 @@ class Goal(SQLModel, table=True):
     business_line_id: int = Field(foreign_key="business_line.id", index=True)
     cycle_id: Optional[int] = Field(default=None, foreign_key="cycle.id", index=True)
     parent_id: Optional[int] = Field(default=None, foreign_key="goal.id", index=True)
-    title: str
-    owner: str = ""
+    title: str = Field(max_length=255)
+    owner: str = Field(default="", max_length=255)
     owner_user_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     sort_order: int = 0
     # 该目标对应的 Jira issue（每个目标 = 1 个 issue）
-    jira_key: str = ""
-    jira_id: str = ""
-    jira_url: str = ""
+    jira_key: str = Field(default="", max_length=64)
+    jira_id: str = Field(default="", max_length=64)
+    jira_url: str = Field(default="", max_length=512)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -119,8 +124,8 @@ class KeyResult(SQLModel, table=True):
     __tablename__ = "key_result"
     id: Optional[int] = Field(default=None, primary_key=True)
     goal_id: int = Field(foreign_key="goal.id", index=True)
-    title: str
-    current_value: str = ""                     # 如 "当前 92%" —— 纯文案，不做计算
+    title: str = Field(max_length=255)
+    current_value: str = Field(default="", max_length=255)  # 如 "当前 92%" —— 纯文案，不做计算
     sort_order: int = 0
 
 
@@ -130,16 +135,16 @@ class Stage(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     goal_id: int = Field(foreign_key="goal.id", index=True)
     stage_index: int                            # 0..4
-    name: str
-    deliverable: str = ""
+    name: str = Field(max_length=255)
+    deliverable: str = Field(default="", max_length=255)
     status: StageStatus = StageStatus.todo      # 标准状态：人工更新
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    jira_key: str = ""
-    note: str = ""                               # 备注（业务需求确定 / 方案确定阶段用，带方法论提示）
-    deliverables: str = ""                       # 产出物列表（JSON：[{name,url}]，用户手填的名称+链接）
+    jira_key: str = Field(default="", max_length=64)
+    note: str = Field(default="", sa_type=Text)          # 备注（业务需求确定 / 方案确定阶段用，带方法论提示）
+    deliverables: str = Field(default="", sa_type=Text)  # 产出物列表（JSON：[{name,url}]，用户手填的名称+链接）
     # 审批状态（独立于标准状态；只有管理用户能改。撤销即清空下面三项记录）
     approval_status: ApprovalStatus = ApprovalStatus.pending
     approved_by_id: Optional[int] = Field(default=None, foreign_key="user.id")
     approved_at: Optional[datetime] = None
-    approve_comment: str = ""                    # 审批意见
+    approve_comment: str = Field(default="", sa_type=Text)  # 审批意见
