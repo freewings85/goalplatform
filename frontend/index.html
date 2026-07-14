@@ -548,7 +548,7 @@ function wsRowHtml(g,depth,r){
   const left=`<div class="gleft" style="padding-left:${10+depth*18}px">
     ${chev}
     <div class="gt" data-act="editGoal" data-id="${g.id}" title="点击编辑目标">
-      <b>${lv} ${esc(g.title)}</b>
+      <b>${lv} ${esc(g.title)}</b>${state.view==='board'?`<span class="muted" style="font-size:11.5px;white-space:nowrap"> ${fdate(g.start_date)} ~ ${fdate(g.end_date)}</span>`:''}
       <div class="gt-meta"><span>👤 ${esc(g.owner)||'—'}</span>${jira}</div>
     </div>
     <div class="rbtns">
