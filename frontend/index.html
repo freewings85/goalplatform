@@ -604,14 +604,14 @@ function renderBoard(c){
   const rows=visibleGoals();
   const cw=(document.getElementById('content')||{}).clientWidth||1000;
   const r=computeRange(state.goals,Math.max(560,cw-386));state.gr=r;
-  const emptyMsg=isMgr?'该周期下还没有目标 →':'本周期没有你负责的目标 →';
+  const emptyMsg=isMgr?'该周期下还没有目标 →':'本周期没有你参与的目标 →';
   const body=rows.length?rows.map(({g,depth})=>wsRowHtml(g,depth,r)).join('')
     :`<div class="grow2"><div class="gleft" style="color:var(--muted)">${emptyMsg}</div><div class="glane" style="width:${r.width}px">${laneCal(r)}</div></div>`;
   c.innerHTML=`
     <div class="ws-head">
       <button class="btn sm" data-act="go" data-id="lines">← 业务线</button>
       <b style="font-size:16px">${esc(state.line?state.line.name:'')} · 看板</b>
-      <span class="tag" title="${isMgr?'管理用户:本业务线所有人的目标':'普通用户:只列你负责的目标(含其子树)'}">${isMgr?'全部目标':'我负责的目标'}</span>
+      <span class="tag" title="${isMgr?'管理用户:本业务线所有人的目标':'普通用户:只列你参与的目标树'}">${isMgr?'全部目标':'我参与的目标'}</span>
       <span style="flex:1"></span>
       <span class="muted" style="font-size:12px">周期</span>
       <select id="bdCycle" style="width:auto">${cycleOpts}</select>

@@ -11,7 +11,8 @@ from sqlmodel import Session, select
 from datetime import datetime
 
 from db import get_session, make_stages
-from deps import current_user, require_manager
+from deps import current_user, require_manager, require_user
+from scope import visible_goal_ids
 from jira_client import JiraError, add_link, assign_issue, create_issue, get_attachments, get_issue
 from jira_config import LINK_TYPE, auth_for_user, jira_issue_type
 from models import ApprovalStatus, BusinessLine, Goal, KeyResult, Stage, User
@@ -86,22 +87,33 @@ def list_goals(
     business_line_id: Optional[int] = None,
     cycle_id: Optional[int] = None,
     session: Session = Depends(get_session),
+    user: User = Depends(require_user),
 ):
-    """扁平返回目标（含 KR + 阶段）；前端按 parent_id 自行拼树。"""
+    """扁平返回目标（含 KR + 阶段）；前端按 parent_id 自行拼树。
+
+    可见范围树级过滤（normal 只看参与的树）；周期过滤在可见集之后做,
+    树归属判断始终基于全量,不受周期影响。
+    """
     q = select(Goal)
     if business_line_id is not None:
         q = q.where(Goal.business_line_id == business_line_id)
-    if cycle_id is not None:
-        q = q.where(Goal.cycle_id == cycle_id)
     q = q.order_by(Goal.sort_order, Goal.id)
-    return [goal_dict(g, session) for g in session.exec(q).all()]
+    goals = session.exec(q).all()
+    vis = visible_goal_ids(goals, user)
+    out = [g for g in goals if g.id in vis]
+    if cycle_id is not None:
+        out = [g for g in out if g.cycle_id == cycle_id]
+    return [goal_dict(g, session) for g in out]
 
 
 @router.get("/goals/{goal_id}")
-def get_goal(goal_id: int, session: Session = Depends(get_session)):
+def get_goal(goal_id: int, session: Session = Depends(get_session), user: User = Depends(require_user)):
     g = session.get(Goal, goal_id)
     if not g:
         raise HTTPException(404, "目标不存在")
+    line_goals = session.exec(select(Goal).where(Goal.business_line_id == g.business_line_id)).all()
+    if g.id not in visible_goal_ids(line_goals, user):
+        raise HTTPException(403, "无权查看该目标")
     return goal_dict(g, session, with_children=True)
 
 

@@ -1,9 +1,8 @@
-"""业务线看板:按角色出内容(管理用户看全部,普通用户看自己负责的)+ 按根条目分页。
+"""业务线看板:按角色出内容(管理用户看全部,普通用户看自己参与的树)+ 按根条目分页。
 
-范围规则(服务端强制,见 docs/superpowers/specs/2026-07-14-role-board-design.md):
-- manager:该业务线 + 所选周期下全部顶层目标,各带完整子树
-- normal:自己负责的目标 + 完整子树;祖先也是自己负责的只列祖先(不重复)
-- 周期过滤只作用在根条目上,子树完整展示
+范围规则与 /api/goals 一致(树级,见 scope.py 与
+docs/superpowers/specs/2026-07-14-goal-tree-visibility-design.md);
+周期过滤只作用在根条目上,子树完整展示。
 """
 from __future__ import annotations
 
@@ -14,7 +13,8 @@ from sqlmodel import Session, select
 
 from db import get_session
 from deps import require_user
-from models import Goal, User, UserRole
+from models import Goal, User
+from scope import visible_tree_roots
 from serializers import goal_dict
 
 router = APIRouter(prefix="/api", tags=["board"])
@@ -33,31 +33,13 @@ def board(
     goals = session.exec(
         select(Goal).where(Goal.business_line_id == business_line_id).order_by(Goal.sort_order, Goal.id)
     ).all()
-    by_id = {g.id: g for g in goals}
     children: dict[int, list[Goal]] = {}
     for g in goals:
         if g.parent_id is not None:
             children.setdefault(g.parent_id, []).append(g)
 
-    def in_cycle(g: Goal) -> bool:
-        return cycle_id is None or g.cycle_id == cycle_id
-
-    if user.role == UserRole.manager:
-        roots = [g for g in goals if g.parent_id is None and in_cycle(g)]
-    else:
-        mine = {g.id for g in goals if g.owner_user_id == user.id}
-
-        def has_my_ancestor(g: Goal) -> bool:
-            cur = g
-            while cur.parent_id is not None:
-                cur = by_id.get(cur.parent_id)
-                if cur is None:
-                    return False
-                if cur.id in mine:
-                    return True
-            return False
-
-        roots = [g for g in goals if g.id in mine and not has_my_ancestor(g) and in_cycle(g)]
+    # 树级可见性(与 /api/goals 同一规则):manager 全部,normal 只有参与的树
+    roots = [g for g in visible_tree_roots(goals, user) if cycle_id is None or g.cycle_id == cycle_id]
 
     total = len(roots)
     pages = max(1, -(-total // PAGE_SIZE))
