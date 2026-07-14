@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from db import init_db
-from routers import admin, auth, business_lines, cycles, goals, settings, users
+from routers import admin, auth, board, business_lines, cycles, goals, settings, users
 
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
@@ -43,6 +43,7 @@ app.include_router(admin.router)
 app.include_router(business_lines.router)
 app.include_router(cycles.router)
 app.include_router(goals.router)
+app.include_router(board.router)
 app.include_router(users.router)
 app.include_router(settings.router)
 
