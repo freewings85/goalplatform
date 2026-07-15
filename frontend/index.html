@@ -155,6 +155,12 @@
   .legend .sw{width:16px;height:10px;border-radius:3px;display:inline-block}
   .legend .sw.today{width:2px;height:14px;background:var(--primary);opacity:.7;border-radius:0}
   /* 看板:一人一框,框高固定、框内双向滚动 */
+  .bfilter{position:relative}
+  .bfilter summary{list-style:none;cursor:pointer}
+  .bfilter summary::-webkit-details-marker{display:none}
+  .bfilter-pop{position:absolute;right:0;top:calc(100% + 6px);z-index:20;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);padding:8px;min-width:170px;max-height:280px;overflow:auto}
+  .bfilter-it{display:flex;align-items:center;gap:8px;padding:5px 8px;font-size:13px;cursor:pointer;border-radius:6px;white-space:nowrap}
+  .bfilter-it:hover{background:#f1f5f9}
   .pbox{border:1px solid var(--line);border-radius:var(--radius);background:#fff;box-shadow:var(--shadow);margin-bottom:14px}
   .pbox-h{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line);font-size:13.5px;background:#fbfcfe;border-radius:var(--radius) var(--radius) 0 0}
   .pbox-b{height:320px;overflow:auto;position:relative}
@@ -294,7 +300,8 @@ const FIXED_STAGES=[['业务需求确定','业务流程图 + 建模图'],['方�
 
 const state={view:'lines',lineId:null,line:null,cycleId:null,
   lines:[],cycles:[],goals:[],byId:{},roots:[],expanded:new Set(),
-  users:[],me:null,jira:null};
+  users:[],me:null,jira:null,
+  boardFilter:null,boardFilterOpen:false};   // 看板人员过滤:null=全部,Set=选中的负责人名
 function currentUser(){return state.me;}
 
 // ---------- helpers ----------
@@ -377,6 +384,7 @@ async function go(view){
 }
 async function selectLine(id){
   state.lineId=Number(id);state.line=state.lines.find(l=>l.id===state.lineId)||null;
+  state.boardFilter=null;state.boardFilterOpen=false;   // 换业务线重置看板人员过滤
   if(state.cycleId===null){const act=state.cycles.find(c=>c.status==='active');state.cycleId=act?act.id:(state.cycles[0]?state.cycles[0].id:null);}
   state.view='workspace';setNavActive();
   await loadGoals();expandAll();render();
@@ -609,9 +617,20 @@ function renderBoard(c){
     if(!(key in gidx)){gidx[key]=groups.length;groups.push({name:key,roots:[]});}
     groups[gidx[key]].roots.push(root);
   });
+  // 人员过滤(多选;state.boardFilter=null 表示全部)
+  const f=state.boardFilter;
+  const shown=f?groups.filter(gr=>f.has(gr.name)):groups;
+  const fLabel=f?`已选 ${f.size} 人`:'全部人员';
+  const filterBox=`<details class="bfilter" ${state.boardFilterOpen?'open':''} ontoggle="state.boardFilterOpen=this.open">
+    <summary class="btn sm">👥 ${fLabel} ▾</summary>
+    <div class="bfilter-pop">
+      <label class="bfilter-it"><input type="checkbox" ${!f?'checked':''} onchange="boardFilterAll()"/> <b>全部</b></label>
+      ${groups.map(gr=>`<label class="bfilter-it"><input type="checkbox" ${f&&f.has(gr.name)?'checked':''} data-name="${esc(gr.name)}" onchange="boardFilterOne(this)"/> ${esc(gr.name)}</label>`).join('')}
+    </div>
+  </details>`;
   const walk=roots=>{const out=[];(function w(list,depth){list.forEach(g=>{out.push({g,depth});if(state.expanded.has(g.id))w(childrenOf(g.id),depth+1);});})(roots,0);return out;};
   const axis=`<div class="grow2 gaxis"><div class="gleft">目标 / 计划</div><div class="glane" style="width:${r.width}px">${laneCal(r)}${calAxis(r)}</div></div>`;
-  const boxes=groups.map(gr=>{
+  const boxes=shown.map(gr=>{
     const rows=walk(gr.roots).map(({g,depth})=>wsRowHtml(g,depth,r)).join('');
     return `<div class="pbox">
       <div class="pbox-h"><span class="avatar">${esc(gr.name.slice(0,1))}</span><b>${esc(gr.name)}</b><span class="muted" style="font-size:12px">· ${gr.roots.length} 棵目标树</span></div>
@@ -625,12 +644,21 @@ function renderBoard(c){
       <b style="font-size:16px">${esc(state.line?state.line.name:'')} · 看板</b>
       <span class="tag" title="${isMgr?'管理用户:本业务线所有人的目标':'普通用户:只列你参与的目标树'}">${isMgr?'全部目标':'我参与的目标'}</span>
       <span style="flex:1"></span>
+      ${filterBox}
       <span class="muted" style="font-size:12px">周期</span>
       <select id="bdCycle" style="width:auto">${cycleOpts}</select>
     </div>
-    ${groups.length?boxes:`<div class="card pad empty">${emptyMsg}</div>`}`;
+    ${shown.length?boxes:`<div class="card pad empty">${groups.length?'没有匹配的人员,调整上面的人员过滤':emptyMsg}</div>`}`;
   const sel=document.getElementById('bdCycle');
   if(sel)sel.onchange=async e=>{state.cycleId=Number(e.target.value);await loadGoals();expandAll();render();};
+}
+// 看板人员过滤:勾「全部」清空过滤;逐个勾选时空集合等价于全部
+function boardFilterAll(){state.boardFilter=null;state.boardFilterOpen=true;render();}
+function boardFilterOne(cb){
+  const f=state.boardFilter?new Set(state.boardFilter):new Set();
+  if(cb.checked)f.add(cb.dataset.name);else f.delete(cb.dataset.name);
+  state.boardFilter=f.size?f:null;
+  state.boardFilterOpen=true;render();
 }
 
 // ================= modals =================
