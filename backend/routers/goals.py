@@ -13,7 +13,7 @@ from datetime import datetime
 from db import get_session, make_stages
 from deps import current_user, require_manager, require_user
 from scope import visible_goal_ids
-from jira_client import JiraError, add_link, assign_issue, create_issue, get_attachments, get_issue
+from jira_client import JiraError, add_link, assign_issue, create_issue, delete_issue, get_attachments, get_issue
 from jira_config import LINK_TYPE, auth_for_user, jira_issue_type
 from models import ApprovalStatus, BusinessLine, Goal, KeyResult, Stage, User
 from schemas import GoalIn, GoalUpdate, JiraLinkIn, KRIn, KRUpdate, StageApprovalIn, StageUpdate
@@ -186,18 +186,43 @@ def update_goal(goal_id: int, payload: GoalUpdate, session: Session = Depends(ge
     return goal_dict(g, session, with_children=True)
 
 
-@router.delete("/goals/{goal_id}", status_code=204)
-def delete_goal(goal_id: int, session: Session = Depends(get_session)):
+@router.delete("/goals/{goal_id}")
+def delete_goal(
+    goal_id: int,
+    delete_jira: bool = False,
+    session: Session = Depends(get_session),
+    user: User | None = Depends(current_user),
+):
     g = session.get(Goal, goal_id)
     if not g:
         raise HTTPException(404, "目标不存在")
-    # 显式按外键依赖排序删（MySQL 强制外键；ORM 级 session.delete 不保证跨表顺序）
     ids = [goal_id] + _descendant_ids(goal_id, session)
+
+    # 同步删 Jira(可选):用当前登录人的凭据,删失败不阻断平台删除,逐个上报
+    jira_deleted: list[str] = []
+    jira_failed: list[dict] = []
+    if delete_jira:
+        keys = [x.jira_key for gid in ids if (x := session.get(Goal, gid)) and x.jira_key]
+        auth = auth_for_user(session, user)
+        for k in keys:
+            if not auth.ok:
+                jira_failed.append({"key": k, "error": "当前用户没有可用的 Jira 凭据"})
+                continue
+            try:
+                delete_issue(auth, k)
+                jira_deleted.append(k)
+            except JiraError as e:
+                jira_failed.append({"key": k, "error": e.message[:200]})
+            except Exception as e:
+                jira_failed.append({"key": k, "error": str(e)[:200]})
+
+    # 显式按外键依赖排序删（MySQL 强制外键；ORM 级 session.delete 不保证跨表顺序）
     session.exec(sa_delete(Stage).where(Stage.goal_id.in_(ids)))
     session.exec(sa_delete(KeyResult).where(KeyResult.goal_id.in_(ids)))
     for gid in reversed(ids):  # BFS 序反着删：子目标先于父目标（parent_id 自引用外键）
         session.exec(sa_delete(Goal).where(Goal.id == gid))
     session.commit()
+    return {"ok": True, "jira_deleted": jira_deleted, "jira_failed": jira_failed}
 
 
 def _descendant_ids(goal_id: int, session: Session) -> list[int]:

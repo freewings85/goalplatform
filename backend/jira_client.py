@@ -98,6 +98,13 @@ def create_issue(
     return {"key": key, "id": data.get("id", ""), "url": _issue_url(auth, key)}
 
 
+def delete_issue(auth: JiraAuth, key: str) -> None:
+    """删除 issue(连带其子任务)。需要该用户在 Jira 里有删除权限。"""
+    with _client(auth) as c:
+        r = c.delete(f"/rest/api/2/issue/{key}", params={"deleteSubtasks": "true"})
+        _raise(r)
+
+
 def get_issue(auth: JiraAuth, key: str) -> dict:
     with _client(auth) as c:
         r = c.get(f"/rest/api/2/issue/{key}", params={"fields": "summary"})

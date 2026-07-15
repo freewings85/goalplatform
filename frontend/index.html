@@ -918,7 +918,16 @@ const actions={
   editGoal:id=>openGoalForm(state.byId[Number(id)],null),
   delGoal:async id=>{const g=state.byId[Number(id)];const kids=childrenOf(Number(id));
     if(!confirm(`删除「${g.title}」？`+(kids.length?`\n注意：它有 ${kids.length} 个子目标，会一并删除。`:'')))return;
-    try{await api('/goals/'+id,{method:'DELETE'});toast('已删除');await loadGoals();render();}catch(e){toast(e.message,true);}},
+    // 子树里有关联的 Jira issue → 再确认是否同步删 Jira
+    const keys=[];(function walk(gid){const x=state.byId[gid];if(x&&x.jira_key)keys.push(x.jira_key);childrenOf(gid).forEach(c=>walk(c.id));})(Number(id));
+    let dj=false;
+    if(keys.length)dj=confirm(`是否同步删除 Jira issue？（${keys.join('、')}）\n\n「确定」= 平台和 Jira 一起删（不可恢复）\n「取消」= 只删平台，Jira 里的 issue 保留`);
+    try{
+      const res=await api('/goals/'+id+(dj?'?delete_jira=1':''),{method:'DELETE'});
+      if(res&&res.jira_failed&&res.jira_failed.length)toast('目标已删除，但这些 Jira 删除失败：'+res.jira_failed.map(f=>f.key+'（'+f.error+'）').join('；'),true);
+      else toast(dj&&keys.length?'已删除（含 Jira issue）':'已删除');
+      await loadGoals();render();
+    }catch(e){toast(e.message,true);}},
   editStage:id=>{const sid=Number(id);let st=null;for(const g of state.goals){const f=(g.stages||[]).find(s=>s.id===sid);if(f){st=f;break;}}if(st)openStageForm(st);},
   // Jira 关联
   jiraSync:async id=>{try{await api('/goals/'+id+'/jira/sync',{method:'POST'});toast('已同步到 Jira');await loadGoals();render();}catch(e){toast(e.message,true);}},
