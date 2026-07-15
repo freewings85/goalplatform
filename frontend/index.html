@@ -669,6 +669,10 @@ function openModal(title,bodyHTML,footHTML){
   document.getElementById('modal').classList.add('open');
 }
 function closeModal(){document.getElementById('modal').classList.remove('open');modalSave.handler=null;}
+// Esc = 取消:关闭当前打开的弹窗(新建/编辑目标等都是这个通用 modal)
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&document.getElementById('modal').classList.contains('open'))closeModal();
+});
 function val(id){const e=document.getElementById(id);return e?e.value.trim():'';}
 function segHTML(id,options,current){
   return `<div class="segmented" id="${id}">`+options.map(o=>`<button type="button" class="seg ${o[0]===current?'active':''}" data-seg="${o[0]}" onclick="pickSeg(this)">${o[2]}</button>`).join('')+`</div>`;
