@@ -549,14 +549,14 @@ function visibleGoals(){
 function wsRowHtml(g,depth,r){
   const kids=childrenOf(g.id),canExpand=kids.length>0,collapsed=!state.expanded.has(g.id);
   const chev=canExpand?`<span class="chev ${collapsed?'col':''}" data-act="toggle" data-id="${g.id}" style="cursor:pointer">▾</span>`:`<span class="chev leaf">▾</span>`;
-  const lv=depth>0?`<span class="lv sub">子</span>`:`<span class="lv">大</span>`;
+  const lv=depth>0?`<span class="lv sub">子</span>`:'';   // 顶层不再标「大」,子目标保留「子」
   const jira=g.jira_key
     ? `<a class="pill neutral" href="${esc(g.jira_url||'#')}" target="_blank" onclick="event.stopPropagation()" style="text-decoration:none;font-size:11px;padding:1px 7px">🔗 ${esc(g.jira_key)} ↗</a>`
     : `<button class="btn sm" data-act="jiraSync" data-id="${g.id}" title="在 Jira 建 issue" style="padding:2px 7px">⤴ Jira</button>`;
   const left=`<div class="gleft" style="padding-left:${10+depth*18}px">
     ${chev}
     <div class="gt" data-act="editGoal" data-id="${g.id}" title="点击编辑目标">
-      <b>${lv} ${esc(g.title)}</b>${state.view==='board'?`<span class="muted" style="font-size:11.5px;white-space:nowrap"> ${fdate(g.start_date)} ~ ${fdate(g.end_date)}</span>`:''}
+      <b>${lv} ${esc(g.title)}</b><span class="muted" style="font-size:11.5px;white-space:nowrap"> ${fdate(g.start_date)} ~ ${fdate(g.end_date)}</span>
       <div class="gt-meta"><span>👤 ${esc(g.owner)||'—'}</span>${jira}</div>
     </div>
     <div class="rbtns">
