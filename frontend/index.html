@@ -725,7 +725,9 @@ function goalForm(goal,parentId){
   const parentGoals=state.goals.filter(g=>!goal||g.id!==goal.id);
   const curParent=goal?goal.parent_id:(parentId?Number(parentId):null);
   const parentOpts=`<option value="">无（顶层大目标）</option>`+parentGoals.map(g=>`<option value="${g.id}" ${curParent===g.id?'selected':''}>${esc(g.title)}</option>`).join('');
-  const ownerOpts=`<option value="">（未指定）</option>`+state.users.map(u=>`<option value="${u.id}" ${((goal&&goal.owner_user_id)===u.id)?'selected':''}>${esc(u.name)}</option>`).join('');
+  // 新建默认负责人 = 当前登录人;编辑保持原负责人
+  const curOwner=goal?goal.owner_user_id:(state.me?state.me.id:null);
+  const ownerOpts=`<option value="">（未指定）</option>`+state.users.map(u=>`<option value="${u.id}" ${curOwner===u.id?'selected':''}>${esc(u.name)}</option>`).join('');
   return `
     <div class="field"><label>目标标题</label><input id="g_title" type="text" value="${goal?esc(goal.title):''}" placeholder="如：把报价 Agent 做成可规模化交付的标品"/></div>
     <div class="two">
